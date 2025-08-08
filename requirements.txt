@@ -2,7 +2,7 @@ flask==2.3.3
 flask-login==0.6.3
 flask-wtf==1.2.2
 wtforms==3.2.1
-python-telegram-bot[job-queue]==22.3
+python-telegram-bot==22.3
 pandas==2.3.1
 python-dotenv==1.0.0
 werkzeug==2.3.7
