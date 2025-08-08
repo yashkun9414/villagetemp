@@ -1,0 +1,41 @@
+# Google App Engine configuration for Gujarat Weather Alert System
+runtime: python310
+
+# Environment variables (set these in Google Cloud Console)
+env_variables:
+  TELEGRAM_BOT_TOKEN: "8235992714:AAED7tTjm6waV6Ak-L-_LgRz37ZfnuEnE4w"
+  ADMIN_EMAIL: "admin@weatheralert.com"
+  ADMIN_PASSWORD: "admin123"
+  SECRET_KEY: "your-secret-key-here-change-in-production"
+
+# Automatic scaling configuration
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+# Resource allocation
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10
+
+# Network settings
+network:
+  forwarded_ports:
+    - 5000
+
+# Health check
+readiness_check:
+  path: "/"
+  check_interval_sec: 5
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 2
+
+liveness_check:
+  path: "/"
+  check_interval_sec: 30
+  timeout_sec: 4
+  failure_threshold: 4
+  success_threshold: 2

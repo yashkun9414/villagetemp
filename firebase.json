@@ -1,0 +1,30 @@
+{
+  "functions": [
+    {
+      "source": ".",
+      "codebase": "default",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "**/__pycache__/**",
+        "**/venv/**",
+        "**/.env.local"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "static",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "function": "app"
+      }
+    ]
+  }
+}
