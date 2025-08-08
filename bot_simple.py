@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Standalone bot hosting script for Railway/Heroku
-This keeps the bot running 24/7 independently
+Simple bot without job queue - works immediately
 """
 
 import os
@@ -72,43 +71,6 @@ def load_data():
         logger.info(f"✅ Loaded {len(districts)} districts and {len(df)} location records")
     except Exception as e:
         logger.error(f"❌ Error loading data: {e}")
-
-def get_fire_alerts_for_area(district, taluka):
-    """Get fire alerts for specific area"""
-    try:
-        fire_files = [
-            'gujarat_fire_history.csv',
-            'static/gujarat_fire_history.csv',
-            '/app/gujarat_fire_history.csv'
-        ]
-        
-        fire_df = None
-        for fire_file in fire_files:
-            try:
-                fire_df = pd.read_csv(fire_file)
-                break
-            except FileNotFoundError:
-                continue
-        
-        if fire_df is None:
-            return []
-        
-        # Get recent fires (last 7 days) for the area
-        from datetime import datetime, timedelta
-        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        
-        recent_fires = fire_df[
-            (fire_df['acq_date'] >= week_ago) & 
-            (fire_df['district'] == district) & 
-            (fire_df['taluka'] == taluka) &
-            (fire_df['confidence'] >= 70)
-        ]
-        
-        return recent_fires.to_dict('records')
-        
-    except Exception as e:
-        logger.error(f"Error getting fire alerts: {e}")
-        return []
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command"""
@@ -285,73 +247,10 @@ async def mystatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
         taluka = subscription['taluka']
         
         status_text = f"📊 Your Subscription Status:\n\n📍 {taluka}, {district}"
-        
-        # Check for recent fire alerts in subscribed area
-        fire_alerts = get_fire_alerts_for_area(district, taluka)
-        if fire_alerts:
-            status_text += f"\n🔥 {len(fire_alerts)} recent fire incident(s)"
     else:
         status_text = "📊 You are not subscribed to any alerts.\n\nUse /subscribe to get started!"
     
     await update.message.reply_text(status_text)
-
-async def fire_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Fire alerts command"""
-    user_id = update.effective_user.id
-    
-    # Check user's subscribed area
-    subscription = get_user_subscription(user_id)
-    
-    if not subscription:
-        await update.message.reply_text("You are not subscribed to any areas. Use /subscribe first!")
-        return
-    
-    district = subscription['district']
-    taluka = subscription['taluka']
-    user_areas = [(district, taluka)]
-    
-    # Get fire alerts for user's areas
-    all_alerts = []
-    for district, taluka in user_areas:
-        alerts = get_fire_alerts_for_area(district, taluka)
-        for alert in alerts:
-            confidence = alert.get('confidence', 'N/A')
-            fire_type = alert.get('fire_type', 'Fire')
-            date = alert.get('acq_date', 'Unknown')
-            all_alerts.append(f"🔥 {date}: {fire_type} in {district} → {taluka} ({confidence}%)")
-    
-    if all_alerts:
-        alert_text = "🔥 Recent Fire Alerts (Last 7 Days):\n\n" + "\n".join(all_alerts[:10])
-        if len(all_alerts) > 10:
-            alert_text += f"\n\n... and {len(all_alerts) - 10} more incidents"
-        alert_text += "\n\n⚠️ Data from NASA MODIS satellites"
-    else:
-        alert_text = "✅ No recent fire alerts in your subscribed areas!\n\n🛰️ Data from NASA MODIS satellites"
-    
-    await update.message.reply_text(alert_text)
-
-async def send_weather_alert_to_subscribers(district, taluka, message):
-    """Send weather alert to subscribers of a specific area"""
-    try:
-        key = f"{district}_{taluka}"
-        if key in subscribers and subscribers[key]:
-            # Get bot application
-            application = Application.builder().token(TOKEN).build()
-            
-            for user_id in subscribers[key]:
-                try:
-                    await application.bot.send_message(
-                        chat_id=user_id,
-                        text=f"⚠️ WEATHER ALERT\n\n{message}\n\n📍 Location: {taluka}, {district}\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
-                    logger.info(f"Weather alert sent to user {user_id}")
-                except Exception as e:
-                    logger.error(f"Failed to send alert to user {user_id}: {e}")
-            
-            return True
-    except Exception as e:
-        logger.error(f"Error sending weather alert: {e}")
-        return False
 
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get current weather for subscribed area"""
@@ -366,28 +265,20 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     district = subscription['district']
     taluka = subscription['taluka']
-    user_areas = [(district, taluka)]
     
-    # Get weather for user's areas
+    # Get weather for user's area
     try:
         from weather_api import get_weather_for_taluka
         
-        weather_info = []
-        for district, taluka in user_areas:
-            weather_data = get_weather_for_taluka(district, taluka)
-            if weather_data:
-                weather_info.append(
-                    f"🌡️ {taluka}, {district}:\n"
-                    f"   Temperature: {weather_data['current_temp']}°C\n"
-                    f"   Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
-                    f"   Humidity: {weather_data['humidity']}%\n"
-                    f"   Condition: {weather_data['weather_description']}\n"
-                )
-        
-        if weather_info:
-            weather_text = "🌤️ Current Weather:\n\n" + "\n".join(weather_info)
+        weather_data = get_weather_for_taluka(district, taluka)
+        if weather_data:
+            weather_text = f"🌤️ Current Weather for {taluka}, {district}:\n\n"
+            weather_text += f"🌡️ Temperature: {weather_data['current_temp']}°C\n"
+            weather_text += f"📊 Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
+            weather_text += f"💧 Humidity: {weather_data['humidity']}%\n"
+            weather_text += f"☁️ Condition: {weather_data['weather_description']}\n"
         else:
-            weather_text = "❌ Weather data not available for your subscribed areas."
+            weather_text = "❌ Weather data not available for your subscribed area."
         
         await update.message.reply_text(weather_text)
         
@@ -395,64 +286,9 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error getting weather: {e}")
         await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
 
-async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process pending alerts manually (admin command)"""
-    user_id = update.effective_user.id
-    
-    # Simple admin check (you can make this more secure)
-    admin_ids = [123456789]  # Add your Telegram user ID here for admin access
-    
-    if user_id not in admin_ids:
-        await update.message.reply_text("This command is for administrators only.")
-        return
-    
-    try:
-        await process_pending_alerts(context.application)
-        await update.message.reply_text("✅ Pending alerts processed!")
-    except Exception as e:
-        logger.error(f"Error processing alerts manually: {e}")
-        await update.message.reply_text("❌ Error processing alerts.")
-
-async def process_pending_alerts(application):
-    """Process pending alerts from the website"""
-    try:
-        pending_alerts = get_pending_alerts()
-        
-        for alert in pending_alerts:
-            district = alert['district']
-            taluka = alert['taluka']
-            message = alert['message']
-            alert_id = alert['id']
-            
-            # Get subscribers for this area
-            subscribers_list = get_subscribers_for_area(district, taluka)
-            
-            if subscribers_list:
-                sent_count = 0
-                alert_text = f"⚠️ ALERT FROM ADMIN\n\n{message}\n\n📍 Location: {taluka}, {district}\n🕐 {alert['timestamp']}"
-                
-                for user_id in subscribers_list:
-                    try:
-                        await application.bot.send_message(
-                            chat_id=user_id,
-                            text=alert_text
-                        )
-                        sent_count += 1
-                        logger.info(f"Alert sent to user {user_id}")
-                    except Exception as e:
-                        logger.error(f"Failed to send alert to user {user_id}: {e}")
-                
-                logger.info(f"Alert sent to {sent_count}/{len(subscribers_list)} subscribers in {district} -> {taluka}")
-            
-            # Mark alert as sent
-            mark_alert_sent(alert_id)
-            
-    except Exception as e:
-        logger.error(f"Error processing pending alerts: {e}")
-
 def main():
     """Run the bot"""
-    logger.info("🚀 Starting Gujarat Weather Alert Bot...")
+    logger.info("🚀 Starting Gujarat Weather Alert Bot (Simple Version)...")
     logger.info("🤖 Bot Username: @VillaegWarningbot")
     logger.info("🔗 Bot Link: https://t.me/VillaegWarningbot")
     
@@ -468,15 +304,11 @@ def main():
     application.add_handler(CommandHandler("subscribe", subscribe))
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
     application.add_handler(CommandHandler("mystatus", mystatus))
-    application.add_handler(CommandHandler("fire", fire_alerts))
     application.add_handler(CommandHandler("weather", weather_command))
-    application.add_handler(CommandHandler("alerts", alerts_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Skip job queue for now - alerts will be processed when users interact
-    logger.info("📨 Alert processing: Manual mode (no job queue)")
-    
     logger.info("✅ Bot is now LIVE and responding!")
+    logger.info("📨 Note: Alerts from website will be processed when users interact with bot")
     logger.info(f"🌐 Running on port {PORT}")
     
     # Run the bot
