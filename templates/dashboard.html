@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Weather Alert Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('send_alert') }}" class="btn btn-primary">
+                <i class="fas fa-exclamation-triangle me-1"></i>Send Alert
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ total_districts }}</h4>
+                        <p class="card-text">Total Districts</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-map fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ total_talukas }}</h4>
+                        <p class="card-text">Total Talukas</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-map-marker-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card text-white" id="bot-status-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="bot-status-text">Checking...</h4>
+                        <p class="card-text">Bot Status</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fab fa-telegram fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">Ready</h4>
+                        <p class="card-text">Alert System</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bell fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line me-2"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="d-grid">
+                            <a href="{{ url_for('send_alert') }}" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Send Custom Alert
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-grid">
+                            <a href="{{ url_for('demo_alerts') }}" class="btn btn-outline-success btn-lg">
+                                <i class="fas fa-play-circle me-2"></i>Test Demo Alerts
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fab fa-telegram me-2"></i>Telegram Bot Info</h5>
+                <button id="restart-bot-btn" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-sync-alt me-1"></i>Restart Bot
+                </button>
+            </div>
+            <div class="card-body">
+                <p><strong>Bot Status:</strong> <span id="bot-status-badge" class="badge bg-secondary">Checking...</span></p>
+                <div id="bot-error-message" class="alert alert-danger d-none"></div>
+                <p><strong>Commands Available:</strong></p>
+                <ul class="list-unstyled">
+                    <li><code>/start</code> - Start bot</li>
+                    <li><code>/subscribe</code> - Subscribe to alerts</li>
+                    <li><code>/unsubscribe</code> - Unsubscribe</li>
+                    <li><code>/mystatus</code> - Check status</li>
+                    <li><code>/help</code> - Get help</li>
+                </ul>
+                <small class="text-muted">Users can interact with the bot to subscribe to weather alerts for their taluka.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle me-2"></i>System Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Data Source</h6>
+                        <p>CSV file with {{ total_talukas }} talukas across {{ total_districts }} districts in Gujarat</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Alert System</h6>
+                        <p>Telegram bot integration for real-time weather alerts to subscribed users</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Admin Features</h6>
+                        <p>Send targeted alerts, test demo alerts, and manage the alert system</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% bloc
+k scripts %}
+<script>
+// Check bot status on page load
+function checkBotStatus() {
+    fetch('/bot_status')
+        .then(response => response.json())
+        .then(data => {
+            const statusCard = document.getElementById('bot-status-card');
+            const statusText = document.getElementById('bot-status-text');
+            const statusBadge = document.getElementById('bot-status-badge');
+            const errorMessage = document.getElementById('bot-error-message');
+            
+            if (data.running) {
+                statusCard.className = 'card text-white bg-success';
+                statusText.textContent = 'Active';
+                statusBadge.className = 'badge bg-success';
+                statusBadge.textContent = 'Active';
+                errorMessage.classList.add('d-none');
+            } else {
+                statusCard.className = 'card text-white bg-danger';
+                statusText.textContent = 'Offline';
+                statusBadge.className = 'badge bg-danger';
+                statusBadge.textContent = 'Offline';
+                
+                if (data.error) {
+                    errorMessage.classList.remove('d-none');
+                    errorMessage.textContent = 'Error: ' + data.error;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error checking bot status:', error);
+            const statusCard = document.getElementById('bot-status-card');
+            const statusText = document.getElementById('bot-status-text');
+            statusCard.className = 'card text-white bg-warning';
+            statusText.textContent = 'Unknown';
+        });
+}
+
+// Restart bot
+document.getElementById('restart-bot-btn').addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Restarting...';
+    
+    fetch('/restart_bot', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Bot restarted successfully!');
+            } else {
+                alert('Failed to restart bot: ' + (data.error || 'Unknown error'));
+            }
+            checkBotStatus();
+        })
+        .catch(error => {
+            console.error('Error restarting bot:', error);
+            alert('Error restarting bot');
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Restart Bot';
+        });
+});
+
+// Check status on page load and every 30 seconds
+checkBotStatus();
+setInterval(checkBotStatus, 30000);
+</script>
+{% endblock %}

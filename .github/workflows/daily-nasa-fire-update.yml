@@ -1,0 +1,61 @@
+name: Daily NASA Fire Data Update
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Run at 6 AM UTC daily
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-fire-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy requests python-dotenv
+    
+    - name: Fetch NASA fire data
+      run: |
+        cd villagetemp
+        python nasa_fire_fetcher.py
+    
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit and push changes
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add villagetemp/gujarat_fire_history.csv villagetemp/static/gujarat_fire_history.csv
+        git commit -m "🛰️ Daily NASA fire data update - $(date +'%Y-%m-%d')"
+        git push
+    
+    - name: Create summary
+      run: |
+        echo "## 🛰️ Daily NASA Fire Data Update" >> $GITHUB_STEP_SUMMARY
+        echo "**Date:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        if [ -f "villagetemp/gujarat_fire_history.csv" ]; then
+          TOTAL_RECORDS=$(wc -l < villagetemp/gujarat_fire_history.csv)
+          echo "**Total fire records:** $((TOTAL_RECORDS - 1))" >> $GITHUB_STEP_SUMMARY
+          echo "**Data Source:** NASA MODIS Satellites" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Real fire data updated successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Status:** ❌ Fire data file not found" >> $GITHUB_STEP_SUMMARY
+        fi

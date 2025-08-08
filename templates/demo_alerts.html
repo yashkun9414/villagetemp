@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Demo Alerts - Weather Alert Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-play-circle me-2"></i>Demo Weather Alerts</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>
+    <strong>Demo Mode:</strong> These are sample alerts you can send to test the system. Click "Send Demo Alert" to send any of these alerts to the specified taluka.
+</div>
+
+<div class="row">
+    {% for alert in alerts %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    {% if alert.type == 'High Temperature' %}
+                        <i class="fas fa-thermometer-full text-danger me-2"></i>
+                    {% elif alert.type == 'Fire Risk' %}
+                        <i class="fas fa-fire text-warning me-2"></i>
+                    {% else %}
+                        <i class="fas fa-exclamation-triangle text-info me-2"></i>
+                    {% endif %}
+                    {{ alert.type }}
+                </h5>
+                <span class="badge 
+                    {% if alert.type == 'High Temperature' %}bg-danger
+                    {% elif alert.type == 'Fire Risk' %}bg-warning
+                    {% else %}bg-info{% endif %}">
+                    Demo
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ alert.message }}</p>
+                
+                <div class="mt-3">
+                    <h6><i class="fas fa-map-marker-alt me-2"></i>Target Location:</h6>
+                    <p class="text-muted mb-2">
+                        <strong>District:</strong> {{ alert.district }}<br>
+                        <strong>Taluka:</strong> {{ alert.taluka }}
+                    </p>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-primary w-100 send-demo-btn" 
+                        data-district="{{ alert.district }}" 
+                        data-taluka="{{ alert.taluka }}" 
+                        data-message="{{ alert.message }}">
+                    <i class="fas fa-paper-plane me-2"></i>Send Demo Alert
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar me-2"></i>Alert Testing Results</h5>
+            </div>
+            <div class="card-body">
+                <div id="testResults" class="alert alert-secondary">
+                    <i class="fas fa-clock me-2"></i>No alerts sent yet. Click "Send Demo Alert" on any card above to test the system.
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-success" id="successCount">0</h4>
+                            <small class="text-muted">Successful Alerts</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-danger" id="failureCount">0</h4>
+                            <small class="text-muted">Failed Alerts</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <h4 class="text-info" id="totalCount">0</h4>
+                            <small class="text-muted">Total Attempts</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs me-2"></i>Testing Instructions</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Make sure the Telegram bot is running</li>
+                    <li>Have users subscribe to alerts using the bot</li>
+                    <li>Click "Send Demo Alert" on any card above</li>
+                    <li>Check if subscribers receive the alert</li>
+                    <li>Monitor the results in the testing panel</li>
+                </ol>
+                <div class="alert alert-warning mt-3">
+                    <small><i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Note:</strong> Alerts will only be sent to users who have subscribed to the specific taluka mentioned in each demo alert.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fab fa-telegram me-2"></i>Bot Commands for Testing</h5>
+            </div>
+            <div class="card-body">
+                <p>Share these commands with test users:</p>
+                <div class="bg-light p-3 rounded">
+                    <code>/start</code> - Start the bot<br>
+                    <code>/subscribe</code> - Subscribe to alerts<br>
+                    <code>/mystatus</code> - Check subscription<br>
+                    <code>/help</code> - Get help
+                </div>
+                
+                <div class="mt-3">
+                    <h6>Test Locations:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-map-pin me-2"></i>AHMADABAD → Bavla</li>
+                        <li><i class="fas fa-map-pin me-2"></i>RAJKOT → Gondal</li>
+                        <li><i class="fas fa-map-pin me-2"></i>SURAT → Bardoli</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 mb-0">Sending alert...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let successCount = 0;
+let failureCount = 0;
+let totalCount = 0;
+
+document.querySelectorAll('.send-demo-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const district = this.dataset.district;
+        const taluka = this.dataset.taluka;
+        const message = this.dataset.message;
+        
+        // Show loading modal
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+        
+        // Disable button
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+        
+        // Send alert
+        fetch('/send_demo_alert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                district: district,
+                taluka: taluka,
+                message: message
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingModal.hide();
+            
+            totalCount++;
+            
+            if (data.success) {
+                successCount++;
+                this.innerHTML = '<i class="fas fa-check me-2"></i>Alert Sent!';
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-success');
+                
+                updateTestResults(`✅ Alert sent successfully to ${taluka}, ${district}`, 'success');
+            } else {
+                failureCount++;
+                this.innerHTML = '<i class="fas fa-times me-2"></i>Failed';
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-danger');
+                
+                updateTestResults(`❌ Failed to send alert to ${taluka}, ${district}. ${data.error || 'Unknown error'}`, 'danger');
+            }
+            
+            // Update counters
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('failureCount').textContent = failureCount;
+            document.getElementById('totalCount').textContent = totalCount;
+            
+            // Re-enable button after 3 seconds
+            setTimeout(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Again';
+                this.classList.remove('btn-success', 'btn-danger');
+                this.classList.add('btn-primary');
+            }, 3000);
+        })
+        .catch(error => {
+            loadingModal.hide();
+            console.error('Error:', error);
+            
+            totalCount++;
+            failureCount++;
+            
+            this.innerHTML = '<i class="fas fa-times me-2"></i>Error';
+            this.classList.remove('btn-primary');
+            this.classList.add('btn-danger');
+            
+            updateTestResults(`❌ Network error while sending alert to ${taluka}, ${district}`, 'danger');
+            
+            // Update counters
+            document.getElementById('failureCount').textContent = failureCount;
+            document.getElementById('totalCount').textContent = totalCount;
+            
+            // Re-enable button after 3 seconds
+            setTimeout(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Again';
+                this.classList.remove('btn-danger');
+                this.classList.add('btn-primary');
+            }, 3000);
+        });
+    });
+});
+
+function updateTestResults(message, type) {
+    const testResults = document.getElementById('testResults');
+    const timestamp = new Date().toLocaleTimeString();
+    
+    testResults.className = `alert alert-${type}`;
+    testResults.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <strong>[${timestamp}]</strong> ${message}
+            </div>
+        </div>
+    `;
+}
+</script>
+{% endblock %}
