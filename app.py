@@ -166,9 +166,26 @@ def send_alert():
         taluka = form.taluka.data
         message = form.message.data
         
-        # Alert functionality (bot runs separately)
-        flash(f'Alert would be sent to {taluka}, {district}: {message}')
-        logger.info(f"Alert request: {district} -> {taluka}: {message}")
+        # Queue alert for bot to send
+        try:
+            from shared_data import queue_alert, get_subscribers_for_area
+            
+            # Check if there are subscribers
+            subscribers = get_subscribers_for_area(district, taluka)
+            
+            if subscribers:
+                # Queue the alert
+                if queue_alert(district, taluka, message, "admin"):
+                    flash(f'✅ Alert queued for {len(subscribers)} subscribers in {taluka}, {district}!', 'success')
+                    logger.info(f"Alert queued: {district} -> {taluka}: {message}")
+                else:
+                    flash('❌ Failed to queue alert. Please try again.', 'error')
+            else:
+                flash(f'⚠️ No subscribers found for {taluka}, {district}', 'warning')
+                
+        except Exception as e:
+            logger.error(f"Error queuing alert: {e}")
+            flash('❌ Error sending alert. Please try again.', 'error')
         
         return redirect(url_for('send_alert'))
     
@@ -245,11 +262,35 @@ def send_weather_alert():
     data = request.get_json()
     alert = data.get('alert')
     
-    # Log the alert (bot runs separately)
-    logger.info(f"Weather alert sent: {alert['district']} -> {alert['taluka']}: {alert['message']}")
-    
-    # In a real implementation, this would send to the bot
-    return jsonify({'success': True, 'message': 'Weather alert sent successfully'})
+    try:
+        from shared_data import queue_alert, get_subscribers_for_area
+        
+        district = alert['district']
+        taluka = alert['taluka']
+        message = alert['message']
+        
+        # Check if there are subscribers
+        subscribers = get_subscribers_for_area(district, taluka)
+        
+        if subscribers:
+            # Queue the weather alert
+            if queue_alert(district, taluka, message, "weather"):
+                logger.info(f"Weather alert queued: {district} -> {taluka}: {message}")
+                return jsonify({
+                    'success': True, 
+                    'message': f'Weather alert queued for {len(subscribers)} subscribers!'
+                })
+            else:
+                return jsonify({'success': False, 'message': 'Failed to queue alert'})
+        else:
+            return jsonify({
+                'success': False, 
+                'message': f'No subscribers found for {taluka}, {district}'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error queuing weather alert: {e}")
+        return jsonify({'success': False, 'message': 'Error sending alert'})
 
 @app.route('/weather/<district>/<taluka>')
 def get_taluka_weather(district, taluka):
@@ -291,6 +332,44 @@ def weather_map_data():
         return jsonify({
             'success': False,
             'error': 'Failed to fetch weather data'
+        })
+
+@app.route('/api/subscriber_stats')
+@login_required
+def subscriber_stats():
+    """Get subscriber statistics"""
+    try:
+        from shared_data import load_subscribers
+        
+        subscribers = load_subscribers()
+        total_subscribers = sum(len(users) for users in subscribers.values())
+        areas_with_subscribers = len([k for k, v in subscribers.items() if v])
+        
+        # Get top subscribed areas
+        top_areas = []
+        for key, users in subscribers.items():
+            if users:
+                district, taluka = key.split('_', 1)
+                top_areas.append({
+                    'district': district,
+                    'taluka': taluka,
+                    'count': len(users)
+                })
+        
+        top_areas.sort(key=lambda x: x['count'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'total_subscribers': total_subscribers,
+            'areas_with_subscribers': areas_with_subscribers,
+            'top_areas': top_areas[:10]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting subscriber stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get subscriber stats'
         })
 
 if __name__ == '__main__':

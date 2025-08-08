@@ -39,8 +39,8 @@
         <div class="col-md-3">
             <div class="card bg-info text-white">
                 <div class="card-body text-center">
-                    <h3>24/7</h3>
-                    <p>Monitoring</p>
+                    <h3 id="subscriber-count">0</h3>
+                    <p>Bot Subscribers</p>
                 </div>
             </div>
         </div>
@@ -122,10 +122,24 @@
 
 {% block scripts %}
 <script>
-// Load weather alerts on page load
+// Load weather alerts and subscriber stats on page load
 document.addEventListener('DOMContentLoaded', function() {
     refreshAlerts();
+    loadSubscriberStats();
 });
+
+function loadSubscriberStats() {
+    fetch('/api/subscriber_stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('subscriber-count').textContent = data.total_subscribers;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading subscriber stats:', error);
+        });
+}
 
 function refreshAlerts() {
     const alertsContainer = document.getElementById('weather-alerts');
