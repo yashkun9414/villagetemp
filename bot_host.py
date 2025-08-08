@@ -9,9 +9,9 @@ import asyncio
 import pandas as pd
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.error import TelegramError
 from dotenv import load_dotenv
 import logging
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -346,89 +346,117 @@ async def fire_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_weather_alert_to_subscribers(district, taluka, message):
     """Send weather alert to subscribers of a specific area"""
     try:
-        subscribers = get_subscribers_for_area(district, taluka)
-        
-        if not subscribers:
-            logger.warning(f"No subscribers found for {taluka}, {district}")
-            return {
-                'success': False,
-                'sent': 0,
-                'failed': 0,
-                'error': 'No subscribers found'
-            }
-
-        sent = 0
-        failed = 0
-        application = context.application
-
-        for user_id in subscribers:
-            try:
-                alert_message = f"""🚨 *WEATHER ALERT*
-                
-📍 *Location:* {taluka}, {district}
-⚠️ *Alert:* {message}
-
-_Stay safe and follow local authorities' guidance._"""
-
-                await application.bot.send_message(
-                    chat_id=user_id,
-                    text=alert_message,
-                    parse_mode='Markdown'
-                )
-                sent += 1
-                logger.info(f"Alert sent successfully to user {user_id}")
-                
-            except TelegramError as te:
-                failed += 1
-                logger.error(f"Telegram error sending to {user_id}: {te}")
-                if "user not found" in str(te).lower():
-                    remove_subscriber(user_id)
-                    logger.info(f"Removed inactive user {user_id}")
+        key = f"{district}_{taluka}"
+        if key in subscribers and subscribers[key]:
+            # Get bot application
+            application = Application.builder().token(TOKEN).build()
             
-            except Exception as e:
-                failed += 1
-                logger.error(f"Failed sending to {user_id}: {e}")
-
-        result = {
-            'success': sent > 0,
-            'sent': sent,
-            'failed': failed,
-            'total': len(subscribers)
-        }
-        
-        logger.info(f"Alert sending complete: {result}")
-        return result
-
+            for user_id in subscribers[key]:
+                try:
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=f"⚠️ WEATHER ALERT\n\n{message}\n\n📍 Location: {taluka}, {district}\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    logger.info(f"Weather alert sent to user {user_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send alert to user {user_id}: {e}")
+            
+            return True
     except Exception as e:
-        logger.error(f"Critical error in send_weather_alert: {e}")
-        return {
-            'success': False,
-            'sent': 0,
-            'failed': 0,
-            'error': str(e)
-        }
+        logger.error(f"Error sending weather alert: {e}")
+        return False
 
-async def process_pending_alerts(context):
-    """Process pending alerts from queue"""
+async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get current weather for subscribed area"""
+    user_id = update.effective_user.id
+    
+    # Check user's subscribed area
+    subscription = get_user_subscription(user_id)
+    
+    if not subscription:
+        await update.message.reply_text("You are not subscribed to any areas. Use /subscribe first!")
+        return
+    
+    district = subscription['district']
+    taluka = subscription['taluka']
+    user_areas = [(district, taluka)]
+    
+    # Get weather for user's areas
     try:
-        pending = get_pending_alerts()
-        logger.info(f"Processing {len(pending)} pending alerts")
-
-        for alert in pending:
-            result = await send_weather_alert_to_subscribers(
-                alert['district'],
-                alert['taluka'],
-                alert['message']
-            )
-            
-            if result['success']:
-                mark_alert_sent(alert['id'])
-                logger.info(f"Alert {alert['id']} processed successfully")
-            else:
-                logger.warning(f"Alert {alert['id']} failed: {result}")
-
+        from weather_api import get_weather_for_taluka
+        
+        weather_info = []
+        for district, taluka in user_areas:
+            weather_data = get_weather_for_taluka(district, taluka)
+            if weather_data:
+                weather_info.append(
+                    f"🌡️ {taluka}, {district}:\n"
+                    f"   Temperature: {weather_data['current_temp']}°C\n"
+                    f"   Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
+                    f"   Humidity: {weather_data['humidity']}%\n"
+                    f"   Condition: {weather_data['weather_description']}\n"
+                )
+        
+        if weather_info:
+            weather_text = "🌤️ Current Weather:\n\n" + "\n".join(weather_info)
+        else:
+            weather_text = "❌ Weather data not available for your subscribed areas."
+        
+        await update.message.reply_text(weather_text)
+        
     except Exception as e:
-        logger.error(f"Error processing alerts: {e}")
+        logger.error(f"Error getting weather: {e}")
+        await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
+
+async def process_pending_alerts(application):
+    """Process pending alerts from the website"""
+    try:
+        pending_alerts = get_pending_alerts()
+        logger.info(f"Processing {len(pending_alerts)} pending alerts...")
+        
+        for alert in pending_alerts:
+            district = alert['district']
+            taluka = alert['taluka']
+            message = alert['message']
+            alert_id = alert.get('id', '')
+            
+            # Get subscribers for this area
+            subscribers_list = get_subscribers_for_area(district, taluka)
+            
+            if subscribers_list:
+                sent_count = 0
+                failed_count = 0
+                
+                # Format alert message
+                alert_text = (
+                    f"🚨 WEATHER ALERT\n\n"
+                    f"{message}\n\n"
+                    f"📍 {taluka}, {district}\n"
+                    f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                )
+                
+                for user_id in subscribers_list:
+                    try:
+                        await application.bot.send_message(
+                            chat_id=int(user_id),  # Convert to int
+                            text=alert_text,
+                            parse_mode='HTML'
+                        )
+                        sent_count += 1
+                        await asyncio.sleep(0.1)  # Prevent rate limiting
+                    except Exception as e:
+                        failed_count += 1
+                        logger.error(f"Failed to send alert to {user_id}: {str(e)}")
+                
+                logger.info(f"Alert {alert_id}: Sent to {sent_count} users, Failed: {failed_count}")
+            else:
+                logger.info(f"No subscribers found for {district} -> {taluka}")
+            
+            # Mark as sent even if some failed
+            mark_alert_sent(alert_id)
+            
+    except Exception as e:
+        logger.error(f"Error processing alerts: {str(e)}")
 
 def main():
     """Run the bot"""
@@ -442,97 +470,30 @@ def main():
     # Create application
     application = Application.builder().token(TOKEN).build()
     
-    # Add job queue for periodic alert processing
-    job_queue = application.job_queue
-    job_queue.run_repeating(process_pending_alerts, interval=60, first=10)
-    
-    # Add command handlers
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("subscribe", subscribe))
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
     application.add_handler(CommandHandler("mystatus", mystatus))
+    application.add_handler(CommandHandler("fire", fire_alerts))
     application.add_handler(CommandHandler("weather", weather_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Start the bot
-    if os.environ.get('ENVIRONMENT') == 'production':
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=TOKEN,
-            webhook_url=f"https://{os.getenv('APP_NAME')}.herokuapp.com/{TOKEN}"
-        )
-    else:
-        application.run_polling()
+    
+    # Add job to process pending alerts every 30 seconds
+    job_queue = application.job_queue
+    job_queue.run_repeating(
+        lambda context: asyncio.create_task(process_pending_alerts(application)),
+        interval=30,
+        first=10
+    )
+    
+    logger.info("✅ Bot is now LIVE and responding!")
+    logger.info("📨 Alert processing system active!")
+    logger.info(f"🌐 Running on port {PORT}")
+    
+    # Run the bot
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
-
-async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get current weather for user's subscribed area"""
-    try:
-        user_id = update.effective_user.id
-        subscription = get_user_subscription(user_id)
-        
-        if not subscription:
-            await update.message.reply_text(
-                "❌ You're not subscribed to any area.\n"
-                "Use /subscribe to set up your location first!"
-            )
-            return
-
-        district = subscription['district']
-        taluka = subscription['taluka']
-
-        # Get weather data for the location
-        try:
-            weather_data = get_weather_data(district, taluka)
-            
-            if weather_data:
-                weather_msg = f"""🌡️ *Current Weather*
-                
-📍 *Location:* {taluka}, {district}
-🌡️ *Temperature:* {weather_data['temp']}°C
-💧 *Humidity:* {weather_data['humidity']}%
-🌪️ *Wind:* {weather_data['wind_speed']} km/h
-
-_Last updated: {weather_data['timestamp']}_"""
-                
-                await update.message.reply_text(
-                    weather_msg,
-                    parse_mode='Markdown'
-                )
-            else:
-                await update.message.reply_text(
-                    "⚠️ Weather data currently unavailable for your area.\n"
-                    "Please try again later."
-                )
-                
-        except Exception as e:
-            logger.error(f"Error fetching weather data: {e}")
-            await update.message.reply_text(
-                "😔 Sorry, there was an error getting weather data.\n"
-                "Please try again later."
-            )
-            
-    except Exception as e:
-        logger.error(f"Error in weather command: {e}")
-        await update.message.reply_text(
-            "❌ An error occurred. Please try again later."
-        )
-
-def get_weather_data(district, taluka):
-    """Get weather data for location from data source"""
-    try:
-        # Implement your weather data fetching logic here
-        # This is a placeholder implementation
-        return {
-            'temp': 32,
-            'humidity': 65,
-            'wind_speed': 12,
-            'timestamp': 'Just now'
-        }
-    except Exception as e:
-        logger.error(f"Error getting weather data: {e}")
-        return None
