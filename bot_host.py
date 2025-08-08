@@ -112,6 +112,12 @@ def get_fire_alerts_for_area(district, taluka):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command"""
+    # Process any pending alerts when user interacts
+    try:
+        await process_pending_alerts(context.application)
+    except:
+        pass  # Don't let alert processing errors affect user interaction
+    
     welcome_text = """🌡️ Welcome to Gujarat Weather Alert Bot!
 
 I provide real-time weather alerts for your area in Gujarat using live weather data.
@@ -154,6 +160,12 @@ You'll get real-time weather alerts for your selected area!"""
 
 async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Subscribe command"""
+    # Process any pending alerts when user interacts
+    try:
+        await process_pending_alerts(context.application)
+    except:
+        pass
+    
     user_id = update.effective_user.id
     
     if not districts:
@@ -395,24 +407,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error getting weather: {e}")
         await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
 
-async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process pending alerts manually (admin command)"""
-    user_id = update.effective_user.id
-    
-    # Simple admin check (you can make this more secure)
-    admin_ids = [123456789]  # Add your Telegram user ID here for admin access
-    
-    if user_id not in admin_ids:
-        await update.message.reply_text("This command is for administrators only.")
-        return
-    
-    try:
-        await process_pending_alerts(context.application)
-        await update.message.reply_text("✅ Pending alerts processed!")
-    except Exception as e:
-        logger.error(f"Error processing alerts manually: {e}")
-        await update.message.reply_text("❌ Error processing alerts.")
-
 async def process_pending_alerts(application):
     """Process pending alerts from the website"""
     try:
@@ -470,13 +464,18 @@ def main():
     application.add_handler(CommandHandler("mystatus", mystatus))
     application.add_handler(CommandHandler("fire", fire_alerts))
     application.add_handler(CommandHandler("weather", weather_command))
-    application.add_handler(CommandHandler("alerts", alerts_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Skip job queue for now - alerts will be processed when users interact
-    logger.info("📨 Alert processing: Manual mode (no job queue)")
+    # Add job to process pending alerts every 30 seconds
+    job_queue = application.job_queue
+    job_queue.run_repeating(
+        lambda context: asyncio.create_task(process_pending_alerts(application)),
+        interval=30,
+        first=10
+    )
     
     logger.info("✅ Bot is now LIVE and responding!")
+    logger.info("📨 Alert processing system active!")
     logger.info(f"🌐 Running on port {PORT}")
     
     # Run the bot
