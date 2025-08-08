@@ -27,10 +27,16 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8235992714:AAED7tTjm6waV6Ak-L-_LgRz37Zf
 PORT = int(os.environ.get('PORT', 8080))
 
 # Global data
-subscribers = {}
 user_data = {}
 districts = []
 talukas_data = {}
+
+# Import shared data system
+from shared_data import (
+    load_subscribers, save_subscribers, add_subscriber, remove_subscriber,
+    get_user_subscription, get_subscribers_for_area, queue_alert,
+    get_pending_alerts, mark_alert_sent, send_alert_to_subscribers
+)
 
 def load_data():
     """Load CSV data"""
@@ -236,17 +242,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             district = user_data[user_id]['district']
             taluka = user_data[user_id]['taluka']
             
-            # Save subscription
-            key = f"{district}_{taluka}"
-            if key not in subscribers:
-                subscribers[key] = []
-            
-            # Remove from other subscriptions
-            for sub_key in list(subscribers.keys()):
-                if user_id in subscribers[sub_key]:
-                    subscribers[sub_key].remove(user_id)
-            
-            subscribers[key].append(user_id)
+            # Save subscription using shared data system
+            add_subscriber(user_id, district, taluka)
             
             await update.message.reply_text(
                 f"🎉 Successfully subscribed!\n\n"
@@ -271,13 +268,7 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Unsubscribe command"""
     user_id = update.effective_user.id
     
-    unsubscribed = False
-    for key in list(subscribers.keys()):
-        if user_id in subscribers[key]:
-            subscribers[key].remove(user_id)
-            unsubscribed = True
-    
-    if unsubscribed:
+    if remove_subscriber(user_id):
         await update.message.reply_text("✅ Successfully unsubscribed from all alerts!")
         logger.info(f"User {user_id} unsubscribed")
     else:
@@ -287,19 +278,18 @@ async def mystatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Status command"""
     user_id = update.effective_user.id
     
-    subscribed_to = []
-    for key, user_list in subscribers.items():
-        if user_id in user_list:
-            district, taluka = key.split('_', 1)
-            subscribed_to.append(f"📍 {taluka}, {district}")
-            
-            # Check for recent fire alerts in subscribed area
-            fire_alerts = get_fire_alerts_for_area(district, taluka)
-            if fire_alerts:
-                subscribed_to.append(f"   🔥 {len(fire_alerts)} recent fire incident(s)")
+    subscription = get_user_subscription(user_id)
     
-    if subscribed_to:
-        status_text = "📊 Your Subscription Status:\n\n" + "\n".join(subscribed_to)
+    if subscription:
+        district = subscription['district']
+        taluka = subscription['taluka']
+        
+        status_text = f"📊 Your Subscription Status:\n\n📍 {taluka}, {district}"
+        
+        # Check for recent fire alerts in subscribed area
+        fire_alerts = get_fire_alerts_for_area(district, taluka)
+        if fire_alerts:
+            status_text += f"\n🔥 {len(fire_alerts)} recent fire incident(s)"
     else:
         status_text = "📊 You are not subscribed to any alerts.\n\nUse /subscribe to get started!"
     
@@ -309,16 +299,16 @@ async def fire_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Fire alerts command"""
     user_id = update.effective_user.id
     
-    # Check user's subscribed areas
-    user_areas = []
-    for key, user_list in subscribers.items():
-        if user_id in user_list:
-            district, taluka = key.split('_', 1)
-            user_areas.append((district, taluka))
+    # Check user's subscribed area
+    subscription = get_user_subscription(user_id)
     
-    if not user_areas:
+    if not subscription:
         await update.message.reply_text("You are not subscribed to any areas. Use /subscribe first!")
         return
+    
+    district = subscription['district']
+    taluka = subscription['taluka']
+    user_areas = [(district, taluka)]
     
     # Get fire alerts for user's areas
     all_alerts = []
@@ -367,16 +357,16 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get current weather for subscribed area"""
     user_id = update.effective_user.id
     
-    # Check user's subscribed areas
-    user_areas = []
-    for key, user_list in subscribers.items():
-        if user_id in user_list:
-            district, taluka = key.split('_', 1)
-            user_areas.append((district, taluka))
+    # Check user's subscribed area
+    subscription = get_user_subscription(user_id)
     
-    if not user_areas:
+    if not subscription:
         await update.message.reply_text("You are not subscribed to any areas. Use /subscribe first!")
         return
+    
+    district = subscription['district']
+    taluka = subscription['taluka']
+    user_areas = [(district, taluka)]
     
     # Get weather for user's areas
     try:
@@ -405,6 +395,43 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error getting weather: {e}")
         await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
 
+async def process_pending_alerts(application):
+    """Process pending alerts from the website"""
+    try:
+        pending_alerts = get_pending_alerts()
+        
+        for alert in pending_alerts:
+            district = alert['district']
+            taluka = alert['taluka']
+            message = alert['message']
+            alert_id = alert['id']
+            
+            # Get subscribers for this area
+            subscribers_list = get_subscribers_for_area(district, taluka)
+            
+            if subscribers_list:
+                sent_count = 0
+                alert_text = f"⚠️ ALERT FROM ADMIN\n\n{message}\n\n📍 Location: {taluka}, {district}\n🕐 {alert['timestamp']}"
+                
+                for user_id in subscribers_list:
+                    try:
+                        await application.bot.send_message(
+                            chat_id=user_id,
+                            text=alert_text
+                        )
+                        sent_count += 1
+                        logger.info(f"Alert sent to user {user_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to send alert to user {user_id}: {e}")
+                
+                logger.info(f"Alert sent to {sent_count}/{len(subscribers_list)} subscribers in {district} -> {taluka}")
+            
+            # Mark alert as sent
+            mark_alert_sent(alert_id)
+            
+    except Exception as e:
+        logger.error(f"Error processing pending alerts: {e}")
+
 def main():
     """Run the bot"""
     logger.info("🚀 Starting Gujarat Weather Alert Bot...")
@@ -427,7 +454,16 @@ def main():
     application.add_handler(CommandHandler("weather", weather_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    # Add job to process pending alerts every 30 seconds
+    job_queue = application.job_queue
+    job_queue.run_repeating(
+        lambda context: asyncio.create_task(process_pending_alerts(application)),
+        interval=30,
+        first=10
+    )
+    
     logger.info("✅ Bot is now LIVE and responding!")
+    logger.info("📨 Alert processing system active!")
     logger.info(f"🌐 Running on port {PORT}")
     
     # Run the bot
