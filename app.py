@@ -65,43 +65,33 @@ TEMP_HOT_THRESHOLD = 40  # Celsius
 TEMP_COLD_THRESHOLD = 5  # Celsius
 
 def check_weather_alerts():
-    """Check for temperature alerts and return alerts to send"""
+    """Check for real temperature alerts using Open-Meteo API"""
     try:
-        df = pd.read_csv('merged_village_temperature_data.csv')
+        from weather_api import get_weather_for_locations, WeatherAPI
+        
+        weather_data = get_weather_for_locations()
         alerts = []
+        weather_api = WeatherAPI()
         
-        # Check for hot weather (assuming there's a temperature column)
-        # For demo, we'll simulate temperature checks
-        import random
-        from datetime import datetime
-        
-        # Simulate some hot/cold areas
-        hot_areas = df.sample(n=min(3, len(df)))
-        cold_areas = df.sample(n=min(2, len(df)))
-        
-        for _, area in hot_areas.iterrows():
-            temp = random.randint(41, 45)  # Simulate hot temperature
-            if temp > TEMP_HOT_THRESHOLD:
-                alerts.append({
-                    'type': 'Hot Weather Alert',
-                    'district': area['District Name'],
-                    'taluka': area['Taluka Name'],
-                    'temperature': temp,
-                    'message': f'🌡️ HIGH TEMPERATURE ALERT: {temp}°C recorded in {area["Taluka Name"]}, {area["District Name"]}. Stay hydrated and avoid outdoor activities during peak hours.',
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
-        
-        for _, area in cold_areas.iterrows():
-            temp = random.randint(2, 4)  # Simulate cold temperature
-            if temp < TEMP_COLD_THRESHOLD:
-                alerts.append({
-                    'type': 'Cold Weather Alert',
-                    'district': area['District Name'],
-                    'taluka': area['Taluka Name'],
-                    'temperature': temp,
-                    'message': f'🥶 LOW TEMPERATURE ALERT: {temp}°C recorded in {area["Taluka Name"]}, {area["District Name"]}. Keep warm and protect crops from frost.',
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
+        for data in weather_data:
+            if data:
+                temp_alerts = weather_api.check_temperature_alerts(data, TEMP_HOT_THRESHOLD, TEMP_COLD_THRESHOLD)
+                if temp_alerts:
+                    for alert in temp_alerts:
+                        alerts.append({
+                            'type': alert['type'],
+                            'district': data['location'],
+                            'taluka': data['location'],
+                            'temperature': alert['temperature'],
+                            'max_temp': alert.get('max_temp', alert['temperature']),
+                            'min_temp': alert.get('min_temp', alert['temperature']),
+                            'severity': alert['severity'],
+                            'message': alert['message'],
+                            'timestamp': data['timestamp'],
+                            'weather_description': data['weather_description'],
+                            'humidity': data['humidity'],
+                            'wind_speed': data['wind_speed']
+                        })
         
         return alerts
     except Exception as e:
@@ -260,6 +250,48 @@ def send_weather_alert():
     
     # In a real implementation, this would send to the bot
     return jsonify({'success': True, 'message': 'Weather alert sent successfully'})
+
+@app.route('/weather/<district>/<taluka>')
+def get_taluka_weather(district, taluka):
+    """Get real weather data for specific taluka"""
+    try:
+        from weather_api import get_weather_for_taluka
+        
+        weather_data = get_weather_for_taluka(district, taluka)
+        if weather_data:
+            return jsonify({
+                'success': True,
+                'weather': weather_data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Weather data not available for this location'
+            })
+    except Exception as e:
+        logger.error(f"Error getting weather for {taluka}, {district}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch weather data'
+        })
+
+@app.route('/api/weather_map_data')
+def weather_map_data():
+    """Get weather data for map display"""
+    try:
+        from weather_api import get_weather_for_locations
+        
+        weather_data = get_weather_for_locations()
+        return jsonify({
+            'success': True,
+            'locations': weather_data
+        })
+    except Exception as e:
+        logger.error(f"Error getting map weather data: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch weather data'
+        })
 
 if __name__ == '__main__':
     # For local development

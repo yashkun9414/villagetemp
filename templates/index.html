@@ -511,7 +511,7 @@
             }).addTo(map);
         }
         
-        // Load CSV data
+        // Load CSV data and weather data
         async function loadCSVData() {
             try {
                 const response = await fetch('/static/merged_village_temperature_data.csv');
@@ -523,6 +523,7 @@
                     complete: function(results) {
                         locationData = results.data;
                         populateDropdowns();
+                        loadWeatherData();
                         showNotification('Data loaded successfully!', 'success');
                     }
                 });
@@ -530,6 +531,66 @@
                 console.error('Error loading CSV:', error);
                 showNotification('Error loading location data', 'error');
             }
+        }
+        
+        // Load real weather data for map
+        async function loadWeatherData() {
+            try {
+                const response = await fetch('/api/weather_map_data');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayWeatherOnMap(data.locations);
+                } else {
+                    console.error('Failed to load weather data:', data.error);
+                }
+            } catch (error) {
+                console.error('Error loading weather data:', error);
+            }
+        }
+        
+        // Display weather data on map
+        function displayWeatherOnMap(weatherLocations) {
+            weatherLocations.forEach(location => {
+                if (location.latitude && location.longitude) {
+                    const temp = location.current_temp;
+                    const isHot = temp >= 40;
+                    const isCold = temp <= 5;
+                    
+                    // Choose marker color based on temperature
+                    let markerColor = 'blue';
+                    if (isHot) markerColor = 'red';
+                    else if (isCold) markerColor = 'lightblue';
+                    else if (temp >= 35) markerColor = 'orange';
+                    else if (temp >= 25) markerColor = 'green';
+                    
+                    // Create custom marker
+                    const marker = L.circleMarker([location.latitude, location.longitude], {
+                        radius: 8,
+                        fillColor: markerColor,
+                        color: '#000',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    // Create popup with weather info
+                    const popupContent = `
+                        <div style="min-width: 200px;">
+                            <h6><strong>${location.location}</strong></h6>
+                            <p><strong>🌡️ Temperature:</strong> ${temp}°C</p>
+                            <p><strong>📊 Max/Min:</strong> ${location.max_temp}°C / ${location.min_temp}°C</p>
+                            <p><strong>💧 Humidity:</strong> ${location.humidity}%</p>
+                            <p><strong>💨 Wind:</strong> ${location.wind_speed} km/h</p>
+                            <p><strong>☁️ Condition:</strong> ${location.weather_description}</p>
+                            ${isHot ? '<p style="color: red;"><strong>⚠️ HIGH TEMPERATURE ALERT</strong></p>' : ''}
+                            ${isCold ? '<p style="color: blue;"><strong>⚠️ LOW TEMPERATURE ALERT</strong></p>' : ''}
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                }
+            });
         }
         
         // Populate dropdowns
@@ -589,15 +650,83 @@
                     
                     map.setView([lat, lng], 12);
                     
-                    L.marker([lat, lng])
-                        .addTo(map)
-                        .bindPopup(`<b>${selectedTaluka}</b><br>${selectedDistrict}`)
-                        .openPopup();
-                    
-                    showLocationInfo(selectedTaluka, selectedDistrict);
+                    // Load weather data for this taluka
+                    loadTalukaWeather(selectedDistrict, selectedTaluka, lat, lng);
                 }
             }
         });
+        
+        // Load weather data for specific taluka
+        async function loadTalukaWeather(district, taluka, lat, lng) {
+            try {
+                showLoader(true);
+                const response = await fetch(`/weather/${district}/${taluka}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const weather = data.weather;
+                    const temp = weather.current_temp;
+                    const isHot = temp >= 40;
+                    const isCold = temp <= 5;
+                    
+                    // Choose marker color based on temperature
+                    let markerColor = 'blue';
+                    if (isHot) markerColor = 'red';
+                    else if (isCold) markerColor = 'lightblue';
+                    else if (temp >= 35) markerColor = 'orange';
+                    else if (temp >= 25) markerColor = 'green';
+                    
+                    // Create weather marker
+                    const marker = L.circleMarker([lat, lng], {
+                        radius: 12,
+                        fillColor: markerColor,
+                        color: '#000',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    // Create detailed popup
+                    const popupContent = `
+                        <div style="min-width: 250px;">
+                            <h5><strong>${taluka}, ${district}</strong></h5>
+                            <hr>
+                            <p><strong>🌡️ Current Temperature:</strong> ${temp}°C</p>
+                            <p><strong>📊 Max/Min Today:</strong> ${weather.max_temp}°C / ${weather.min_temp}°C</p>
+                            <p><strong>💧 Humidity:</strong> ${weather.humidity}%</p>
+                            <p><strong>💨 Wind Speed:</strong> ${weather.wind_speed} km/h</p>
+                            <p><strong>☁️ Condition:</strong> ${weather.weather_description}</p>
+                            <p><strong>🕐 Updated:</strong> ${new Date(weather.timestamp).toLocaleString()}</p>
+                            ${isHot ? '<div style="color: red; font-weight: bold;">⚠️ HIGH TEMPERATURE ALERT</div>' : ''}
+                            ${isCold ? '<div style="color: blue; font-weight: bold;">⚠️ LOW TEMPERATURE ALERT</div>' : ''}
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent).openPopup();
+                    
+                    // Update info panel
+                    showLocationInfo(taluka, district, weather);
+                    
+                } else {
+                    // Fallback marker without weather data
+                    L.marker([lat, lng])
+                        .addTo(map)
+                        .bindPopup(`<b>${taluka}</b><br>${district}<br><em>Weather data not available</em>`)
+                        .openPopup();
+                }
+                
+                showLoader(false);
+            } catch (error) {
+                console.error('Error loading taluka weather:', error);
+                showLoader(false);
+                
+                // Fallback marker
+                L.marker([lat, lng])
+                    .addTo(map)
+                    .bindPopup(`<b>${taluka}</b><br>${district}`)
+                    .openPopup();
+            }
+        }
         
         // Get user location
         document.getElementById('getLocationBtn').addEventListener('click', function() {
@@ -627,6 +756,45 @@
                 showNotification('Geolocation is not supported', 'error');
             }
         });
+        
+        // Show location info with weather data
+        function showLocationInfo(taluka, district, weather = null) {
+            const infoPanel = document.getElementById('info-panel');
+            const infoTitle = document.getElementById('info-title');
+            const weatherInfo = document.getElementById('weather-info');
+            
+            infoTitle.textContent = `${taluka}, ${district}`;
+            
+            if (weather) {
+                const temp = weather.current_temp;
+                const isHot = temp >= 40;
+                const isCold = temp <= 5;
+                
+                weatherInfo.innerHTML = `
+                    <div class="weather-details">
+                        <div class="mb-2">
+                            <strong>🌡️ Temperature:</strong> 
+                            <span class="${isHot ? 'text-danger' : isCold ? 'text-primary' : ''}">${temp}°C</span>
+                        </div>
+                        <div class="mb-2">
+                            <strong>📊 Range:</strong> ${weather.max_temp}°C / ${weather.min_temp}°C
+                        </div>
+                        <div class="mb-2">
+                            <strong>💧 Humidity:</strong> ${weather.humidity}%
+                        </div>
+                        <div class="mb-2">
+                            <strong>☁️ Condition:</strong> ${weather.weather_description}
+                        </div>
+                        ${isHot ? '<div class="alert alert-danger p-2 mt-2"><small>⚠️ High Temperature Alert</small></div>' : ''}
+                        ${isCold ? '<div class="alert alert-primary p-2 mt-2"><small>⚠️ Low Temperature Alert</small></div>' : ''}
+                    </div>
+                `;
+            } else {
+                weatherInfo.innerHTML = '<p class="text-muted">Select a location to view weather data</p>';
+            }
+            
+            infoPanel.style.display = 'block';
+        }
         
         // Download data
         document.getElementById('downloadBtn').addEventListener('click', function() {
