@@ -1,0 +1,12 @@
+[
+  {
+    "id": "1754653406.618944",
+    "district": "AHMEDABAD",
+    "taluka": "Bavla",
+    "message": "\ud83c\udf21\ufe0f HIGH TEMPERATURE ALERT\n\nTemperature: 43\u00b0C expected in Bavla today!\n\n\u26a0\ufe0f SAFETY MEASURES:\n\u2022 Stay indoors during 11 AM - 4 PM\n\u2022 Drink plenty of water\n\u2022 Wear light colored clothes\n\u2022 Avoid outdoor activities\n\n\ud83c\udfe5 Emergency: Call 108 if feeling unwell\n\nThis is a DEMO alert to test the system.",
+    "type": "demo",
+    "timestamp": "2025-08-08T17:13:26.618944",
+    "sent": true,
+    "sent_at": "2025-08-08T18:44:21.691264"
+  }
+]
