@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Weather Alert Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">🌡️ Weather Alert Dashboard</h2>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3>{{ total_districts }}</h3>
+                    <p>Districts</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3>{{ total_talukas }}</h3>
+                    <p>Talukas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h3 id="alert-count">0</h3>
+                    <p>Active Alerts</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h3>24/7</h3>
+                    <p>Monitoring</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weather Alerts Section -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>🌡️ Current Weather Alerts</h5>
+                    <button class="btn btn-sm btn-primary" onclick="refreshAlerts()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="weather-alerts">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p>Loading weather alerts...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>⚡ Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('send_alert') }}" class="btn btn-primary">
+                            <i class="fas fa-exclamation-triangle"></i> Send Custom Alert
+                        </a>
+                        <button class="btn btn-success" onclick="refreshAlerts()">
+                            <i class="fas fa-thermometer-half"></i> Check Weather
+                        </button>
+                        <a href="https://t.me/VillaegWarningbot" target="_blank" class="btn btn-info">
+                            <i class="fab fa-telegram"></i> View Bot
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Temperature Thresholds -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>🌡️ Alert Thresholds</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="text-danger">
+                                <strong>Hot</strong><br>
+                                > 40°C
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-primary">
+                                <strong>Cold</strong><br>
+                                < 5°C
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load weather alerts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    refreshAlerts();
+});
+
+function refreshAlerts() {
+    const alertsContainer = document.getElementById('weather-alerts');
+    const alertCount = document.getElementById('alert-count');
+    
+    // Show loading
+    alertsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Checking weather conditions...</p>
+        </div>
+    `;
+    
+    fetch('/weather_alerts')
+        .then(response => response.json())
+        .then(data => {
+            const alerts = data.alerts;
+            alertCount.textContent = alerts.length;
+            
+            if (alerts.length === 0) {
+                alertsContainer.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-check-circle fa-3x mb-3"></i>
+                        <h5>No Weather Alerts</h5>
+                        <p>All areas are within normal temperature ranges.</p>
+                    </div>
+                `;
+            } else {
+                let alertsHtml = '';
+                alerts.forEach(alert => {
+                    const alertClass = alert.type.includes('Hot') ? 'danger' : 'primary';
+                    const icon = alert.type.includes('Hot') ? 'fa-thermometer-full' : 'fa-thermometer-empty';
+                    
+                    alertsHtml += `
+                        <div class="alert alert-${alertClass} d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6><i class="fas ${icon}"></i> ${alert.type}</h6>
+                                <p class="mb-1"><strong>${alert.district} → ${alert.taluka}</strong></p>
+                                <p class="mb-1">Temperature: <strong>${alert.temperature}°C</strong></p>
+                                <small class="text-muted">${alert.timestamp}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-${alertClass}" onclick="sendWeatherAlert(${JSON.stringify(alert).replace(/"/g, '&quot;')})">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </button>
+                        </div>
+                    `;
+                });
+                alertsContainer.innerHTML = alertsHtml;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading alerts:', error);
+            alertsContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error loading weather alerts. Please try again.
+                </div>
+            `;
+        });
+}
+
+function sendWeatherAlert(alert) {
+    if (confirm(`Send weather alert for ${alert.district} → ${alert.taluka}?`)) {
+        fetch('/send_weather_alert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({alert: alert})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Weather alert sent successfully!');
+            } else {
+                alert('Error sending alert. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error sending alert. Please try again.');
+        });
+    }
+}
+
+// Auto-refresh alerts every 5 minutes
+setInterval(refreshAlerts, 5 * 60 * 1000);
+</script>
+{% endblock %}

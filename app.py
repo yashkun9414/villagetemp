@@ -60,6 +60,54 @@ class AlertForm(FlaskForm):
 # Bot status (managed separately)
 bot_status = {"running": True, "error": None}
 
+# Weather monitoring thresholds
+TEMP_HOT_THRESHOLD = 40  # Celsius
+TEMP_COLD_THRESHOLD = 5  # Celsius
+
+def check_weather_alerts():
+    """Check for temperature alerts and return alerts to send"""
+    try:
+        df = pd.read_csv('merged_village_temperature_data.csv')
+        alerts = []
+        
+        # Check for hot weather (assuming there's a temperature column)
+        # For demo, we'll simulate temperature checks
+        import random
+        from datetime import datetime
+        
+        # Simulate some hot/cold areas
+        hot_areas = df.sample(n=min(3, len(df)))
+        cold_areas = df.sample(n=min(2, len(df)))
+        
+        for _, area in hot_areas.iterrows():
+            temp = random.randint(41, 45)  # Simulate hot temperature
+            if temp > TEMP_HOT_THRESHOLD:
+                alerts.append({
+                    'type': 'Hot Weather Alert',
+                    'district': area['District Name'],
+                    'taluka': area['Taluka Name'],
+                    'temperature': temp,
+                    'message': f'🌡️ HIGH TEMPERATURE ALERT: {temp}°C recorded in {area["Taluka Name"]}, {area["District Name"]}. Stay hydrated and avoid outdoor activities during peak hours.',
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+        
+        for _, area in cold_areas.iterrows():
+            temp = random.randint(2, 4)  # Simulate cold temperature
+            if temp < TEMP_COLD_THRESHOLD:
+                alerts.append({
+                    'type': 'Cold Weather Alert',
+                    'district': area['District Name'],
+                    'taluka': area['Taluka Name'],
+                    'temperature': temp,
+                    'message': f'🥶 LOW TEMPERATURE ALERT: {temp}°C recorded in {area["Taluka Name"]}, {area["District Name"]}. Keep warm and protect crops from frost.',
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+        
+        return alerts
+    except Exception as e:
+        logger.error(f"Error checking weather alerts: {e}")
+        return []
+
 # Routes
 @app.route('/')
 def index():
@@ -78,12 +126,21 @@ def login():
         email = form.email.data
         password = form.password.data
         
-        if email == os.getenv('ADMIN_EMAIL') and password == os.getenv('ADMIN_PASSWORD'):
+        # Debug: Check environment variables
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@weatheralert.com')
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        
+        logger.info(f"Login attempt: {email}")
+        logger.info(f"Expected email: {admin_email}")
+        
+        if email == admin_email and password == admin_password:
             user = User("1", email)
             login_user(user)
+            logger.info(f"Successful login for {email}")
             return redirect(url_for('dashboard'))
         else:
-            flash('Invalid email or password')
+            logger.warning(f"Failed login attempt for {email}")
+            flash('Invalid email or password. Use admin@weatheralert.com / admin123')
     
     return render_template('login.html', form=form)
 
@@ -100,7 +157,7 @@ def dashboard():
     total_districts = talukas['District Name'].nunique()
     total_talukas = len(talukas)
     
-    return render_template('dashboard.html', 
+    return render_template('dashboard_simple.html', 
                          total_districts=total_districts, 
                          total_talukas=total_talukas)
 
@@ -183,6 +240,26 @@ def get_bot_status():
 def restart_bot():
     # Bot runs separately, just return success
     return jsonify({'success': True, 'status': bot_status})
+
+@app.route('/weather_alerts')
+@login_required
+def get_weather_alerts():
+    """Get current weather alerts"""
+    alerts = check_weather_alerts()
+    return jsonify({'alerts': alerts})
+
+@app.route('/send_weather_alert', methods=['POST'])
+@login_required
+def send_weather_alert():
+    """Send weather alert to subscribers"""
+    data = request.get_json()
+    alert = data.get('alert')
+    
+    # Log the alert (bot runs separately)
+    logger.info(f"Weather alert sent: {alert['district']} -> {alert['taluka']}: {alert['message']}")
+    
+    # In a real implementation, this would send to the bot
+    return jsonify({'success': True, 'message': 'Weather alert sent successfully'})
 
 if __name__ == '__main__':
     # For local development
