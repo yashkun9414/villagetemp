@@ -1,1 +1,2 @@
-web: python bot_host.py
+web: python app.py
+bot: python bot_host.py
