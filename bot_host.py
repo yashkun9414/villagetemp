@@ -108,17 +108,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start command"""
     welcome_text = """🌡️ Welcome to Gujarat Weather Alert Bot!
 
-I help you get weather alerts for your area in Gujarat.
+I provide real-time weather alerts for your area in Gujarat using live weather data.
 
 Available commands:
 /start - Show this welcome message
 /subscribe - Subscribe to alerts for your taluka
+/weather - Get current weather for your area
 /unsubscribe - Unsubscribe from alerts
 /mystatus - Check your subscription
 /fire - Check recent fire alerts in your area
 /help - Get help
 
-👆 Use /subscribe to get started!"""
+👆 Use /subscribe to get started and receive real weather alerts!"""
     
     await update.message.reply_text(welcome_text)
 
@@ -131,6 +132,7 @@ Commands:
 /subscribe - Subscribe to weather alerts
 /unsubscribe - Unsubscribe from alerts
 /mystatus - Check subscription status
+/weather - Get current weather for your area
 /fire - Check recent fire alerts in your area
 /help - Show this help
 
@@ -140,7 +142,7 @@ How to subscribe:
 3. Choose your taluka
 4. Confirm subscription
 
-You'll get weather alerts for your selected area!"""
+You'll get real-time weather alerts for your selected area!"""
     
     await update.message.reply_text(help_text)
 
@@ -338,6 +340,71 @@ async def fire_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(alert_text)
 
+async def send_weather_alert_to_subscribers(district, taluka, message):
+    """Send weather alert to subscribers of a specific area"""
+    try:
+        key = f"{district}_{taluka}"
+        if key in subscribers and subscribers[key]:
+            # Get bot application
+            application = Application.builder().token(TOKEN).build()
+            
+            for user_id in subscribers[key]:
+                try:
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=f"⚠️ WEATHER ALERT\n\n{message}\n\n📍 Location: {taluka}, {district}\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    logger.info(f"Weather alert sent to user {user_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send alert to user {user_id}: {e}")
+            
+            return True
+    except Exception as e:
+        logger.error(f"Error sending weather alert: {e}")
+        return False
+
+async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get current weather for subscribed area"""
+    user_id = update.effective_user.id
+    
+    # Check user's subscribed areas
+    user_areas = []
+    for key, user_list in subscribers.items():
+        if user_id in user_list:
+            district, taluka = key.split('_', 1)
+            user_areas.append((district, taluka))
+    
+    if not user_areas:
+        await update.message.reply_text("You are not subscribed to any areas. Use /subscribe first!")
+        return
+    
+    # Get weather for user's areas
+    try:
+        from weather_api import get_weather_for_taluka
+        
+        weather_info = []
+        for district, taluka in user_areas:
+            weather_data = get_weather_for_taluka(district, taluka)
+            if weather_data:
+                weather_info.append(
+                    f"🌡️ {taluka}, {district}:\n"
+                    f"   Temperature: {weather_data['current_temp']}°C\n"
+                    f"   Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
+                    f"   Humidity: {weather_data['humidity']}%\n"
+                    f"   Condition: {weather_data['weather_description']}\n"
+                )
+        
+        if weather_info:
+            weather_text = "🌤️ Current Weather:\n\n" + "\n".join(weather_info)
+        else:
+            weather_text = "❌ Weather data not available for your subscribed areas."
+        
+        await update.message.reply_text(weather_text)
+        
+    except Exception as e:
+        logger.error(f"Error getting weather: {e}")
+        await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
+
 def main():
     """Run the bot"""
     logger.info("🚀 Starting Gujarat Weather Alert Bot...")
@@ -357,6 +424,7 @@ def main():
     application.add_handler(CommandHandler("unsubscribe", unsubscribe))
     application.add_handler(CommandHandler("mystatus", mystatus))
     application.add_handler(CommandHandler("fire", fire_alerts))
+    application.add_handler(CommandHandler("weather", weather_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     logger.info("✅ Bot is now LIVE and responding!")
