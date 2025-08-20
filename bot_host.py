@@ -9,6 +9,9 @@ import asyncio
 import pandas as pd
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+# make sure JobQueue is available
+# requires: python-telegram-bot[job-queue]
+
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
@@ -140,22 +143,37 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help command"""
     help_text = """🆘 Help - Gujarat Weather Alert Bot
 
-Commands:
-/start - Start the bot
-/subscribe - Subscribe to weather alerts
-/unsubscribe - Unsubscribe from alerts
-/mystatus - Check subscription status
+📱 User Commands:
+/start - Start the bot and see welcome message
+/subscribe - Subscribe to weather & fire alerts
+/unsubscribe - Unsubscribe from all alerts
+/mystatus - Check your subscription status
 /weather - Get current weather for your area
 /fire - Check recent fire alerts in your area
+/stats - View bot statistics
 /help - Show this help
 
-How to subscribe:
-1. Send /subscribe
-2. Choose your district
-3. Choose your taluka
-4. Confirm subscription
+🔧 Admin Commands:
+/broadcast <district> <taluka> <message> - Send custom message to taluka subscribers
 
-You'll get real-time weather alerts for your selected area!"""
+📋 How to subscribe:
+1. Send /subscribe
+2. Choose your district from the list
+3. Choose your taluka from the list
+4. Confirm your subscription
+
+✨ What you'll receive:
+• Real-time weather alerts (high/low temperature)
+• Fire incident notifications from NASA satellites
+• Emergency messages from administrators
+• Custom alerts for your specific area
+
+🛰️ Data Sources:
+• Weather: Open-Meteo API (real-time)
+• Fire Data: NASA MODIS satellites
+• Location Data: Gujarat government records
+
+🤖 Bot: @VillaegWarningbot"""
     
     await update.message.reply_text(help_text)
 
@@ -321,25 +339,56 @@ async def fire_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     district = subscription['district']
     taluka = subscription['taluka']
-    user_areas = [(district, taluka)]
     
-    # Get fire alerts for user's areas
-    all_alerts = []
-    for district, taluka in user_areas:
-        alerts = get_fire_alerts_for_area(district, taluka)
-        for alert in alerts:
-            confidence = alert.get('confidence', 'N/A')
-            fire_type = alert.get('fire_type', 'Fire')
-            date = alert.get('acq_date', 'Unknown')
-            all_alerts.append(f"🔥 {date}: {fire_type} in {district} → {taluka} ({confidence}%)")
+    # Get fire alerts for user's area
+    alerts = get_fire_alerts_for_area(district, taluka)
     
-    if all_alerts:
-        alert_text = "🔥 Recent Fire Alerts (Last 7 Days):\n\n" + "\n".join(all_alerts[:10])
-        if len(all_alerts) > 10:
-            alert_text += f"\n\n... and {len(all_alerts) - 10} more incidents"
-        alert_text += "\n\n⚠️ Data from NASA MODIS satellites"
+    if alerts and len(alerts) > 0:
+        # Filter for recent alerts (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        recent_alerts = [a for a in alerts if a.get('acq_date', '') >= week_ago]
+        
+        if recent_alerts:
+            # Categorize alerts by severity and confidence
+            high_risk = [a for a in recent_alerts if a.get('confidence', 0) >= 80]
+            medium_risk = [a for a in recent_alerts if 60 <= a.get('confidence', 0) < 80]
+            low_risk = [a for a in recent_alerts if a.get('confidence', 0) < 60]
+            
+            alert_text = f"🔥 Fire Alerts for {taluka}, {district}\n"
+            alert_text += f"📊 Recent: {len(recent_alerts)} incidents (Last 7 Days)\n\n"
+            
+            if high_risk:
+                alert_text += f"🚨 HIGH RISK ({len(high_risk)} incidents):\n"
+                for alert in high_risk[:3]:
+                    alert_text += f"   📅 {alert.get('acq_date', 'Unknown')}: {alert.get('fire_type', 'Fire')} ({alert.get('confidence', 'N/A')}%)\n"
+                    alert_text += f"   📍 {alert.get('latitude', 0):.4f}, {alert.get('longitude', 0):.4f}\n"
+                if len(high_risk) > 3:
+                    alert_text += f"   ... and {len(high_risk) - 3} more high-risk incidents\n"
+                alert_text += "\n"
+            
+            if medium_risk:
+                alert_text += f"⚠️ MEDIUM RISK ({len(medium_risk)} incidents)\n"
+                for alert in medium_risk[:2]:
+                    alert_text += f"   📅 {alert.get('acq_date', 'Unknown')}: {alert.get('fire_type', 'Fire')} ({alert.get('confidence', 'N/A')}%)\n"
+                if len(medium_risk) > 2:
+                    alert_text += f"   ... and {len(medium_risk) - 2} more medium-risk incidents\n"
+                alert_text += "\n"
+            
+            if low_risk:
+                alert_text += f"ℹ️ LOW RISK: {len(low_risk)} incidents\n\n"
+            
+            alert_text += "🛰️ Data from NASA MODIS satellites\n"
+            alert_text += "📱 Use /weather for current weather conditions"
+        else:
+            alert_text = f"✅ No recent fire alerts for {taluka}, {district}!\n\n"
+            alert_text += "🛰️ All clear in your area (last 7 days)\n"
+            alert_text += "📱 Use /weather for current weather conditions"
     else:
-        alert_text = "✅ No recent fire alerts in your subscribed areas!\n\n🛰️ Data from NASA MODIS satellites"
+        alert_text = f"✅ No fire alerts for {taluka}, {district}!\n\n"
+        alert_text += "🛰️ No fire incidents detected in your area\n"
+        alert_text += "📡 NASA MODIS satellite monitoring active\n"
+        alert_text += "📱 Use /weather for current weather conditions"
     
     await update.message.reply_text(alert_text)
 
@@ -379,34 +428,159 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     district = subscription['district']
     taluka = subscription['taluka']
-    user_areas = [(district, taluka)]
     
-    # Get weather for user's areas
+    # Get weather for user's area
     try:
         from weather_api import get_weather_for_taluka
         
-        weather_info = []
-        for district, taluka in user_areas:
-            weather_data = get_weather_for_taluka(district, taluka)
-            if weather_data:
-                weather_info.append(
-                    f"🌡️ {taluka}, {district}:\n"
-                    f"   Temperature: {weather_data['current_temp']}°C\n"
-                    f"   Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
-                    f"   Humidity: {weather_data['humidity']}%\n"
-                    f"   Condition: {weather_data['weather_description']}\n"
-                )
-        
-        if weather_info:
-            weather_text = "🌤️ Current Weather:\n\n" + "\n".join(weather_info)
+        weather_data = get_weather_for_taluka(district, taluka)
+        if weather_data:
+            temp = weather_data['current_temp']
+            
+            # Add temperature alerts
+            temp_alert = ""
+            if temp >= 40:
+                temp_alert = "\n🚨 HIGH TEMPERATURE ALERT! Stay hydrated and avoid outdoor activities."
+            elif temp <= 5:
+                temp_alert = "\n🥶 LOW TEMPERATURE ALERT! Dress warmly and protect crops."
+            
+            weather_text = f"🌤️ Current Weather for {taluka}, {district}:\n\n"
+            weather_text += f"🌡️ Temperature: {temp}°C\n"
+            weather_text += f"📊 Max/Min: {weather_data['max_temp']}°C / {weather_data['min_temp']}°C\n"
+            weather_text += f"💧 Humidity: {weather_data['humidity']}%\n"
+            weather_text += f"💨 Wind: {weather_data.get('wind_speed', 'N/A')} km/h\n"
+            weather_text += f"☁️ Condition: {weather_data['weather_description']}\n"
+            weather_text += temp_alert
+            weather_text += f"\n\n🕐 Updated: {datetime.now().strftime('%H:%M')}"
         else:
-            weather_text = "❌ Weather data not available for your subscribed areas."
+            weather_text = f"❌ Weather data not available for {taluka}, {district}."
         
         await update.message.reply_text(weather_text)
         
     except Exception as e:
         logger.error(f"Error getting weather: {e}")
         await update.message.reply_text("❌ Error fetching weather data. Please try again later.")
+
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to broadcast message to specific taluka (admin only)"""
+    user_id = update.effective_user.id
+    
+    # Check if user is admin (you can customize this check)
+    admin_ids = [int(os.getenv('ADMIN_TELEGRAM_ID', '0'))]  # Add admin Telegram IDs
+    
+    if user_id not in admin_ids and user_id != 123456789:  # Replace with actual admin ID
+        await update.message.reply_text("❌ This command is only available to administrators.")
+        return
+    
+    # Parse command arguments
+    args = context.args
+    if len(args) < 3:
+        await update.message.reply_text(
+            "Usage: /broadcast <district> <taluka> <message>\n\n"
+            "Example: /broadcast AHMADABAD Bavla Emergency alert for your area"
+        )
+        return
+    
+    district = args[0]
+    taluka = args[1]
+    message = " ".join(args[2:])
+    
+    # Get subscribers for the area
+    subscribers = get_subscribers_for_area(district, taluka)
+    
+    if not subscribers:
+        await update.message.reply_text(f"❌ No subscribers found for {taluka}, {district}")
+        return
+    
+    # Queue the broadcast message
+    try:
+        if queue_alert(district, taluka, f"📢 ADMIN MESSAGE:\n\n{message}", "admin"):
+            await update.message.reply_text(
+                f"✅ Broadcast queued for {len(subscribers)} subscribers in {taluka}, {district}!\n\n"
+                f"Message: {message}"
+            )
+            logger.info(f"Admin {user_id} broadcast to {district}/{taluka}: {message}")
+        else:
+            await update.message.reply_text("❌ Failed to queue broadcast message.")
+    except Exception as e:
+        logger.error(f"Error broadcasting message: {e}")
+        await update.message.reply_text("❌ Error sending broadcast message.")
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show bot statistics"""
+    try:
+        subscribers = load_subscribers()
+        total_subscribers = sum(len(users) for users in subscribers.values())
+        areas_with_subscribers = len([k for k, v in subscribers.items() if v])
+        
+        # Get top subscribed areas
+        top_areas = []
+        for key, users in subscribers.items():
+            if users:
+                district, taluka = key.split('_', 1)
+                top_areas.append((district, taluka, len(users)))
+        
+        top_areas.sort(key=lambda x: x[2], reverse=True)
+        
+        stats_text = f"📊 Gujarat Weather & Fire Alert Bot\n\n"
+        stats_text += f"👥 Total Subscribers: {total_subscribers}\n"
+        stats_text += f"📍 Areas with Subscribers: {areas_with_subscribers}\n\n"
+        
+        if top_areas:
+            stats_text += "🏆 Top Subscribed Areas:\n"
+            for i, (district, taluka, count) in enumerate(top_areas[:5], 1):
+                stats_text += f"{i}. {taluka}, {district} ({count} subscribers)\n"
+        
+        # Add fire data stats
+        try:
+            fire_files = [
+                'gujarat_fire_history.csv',
+                'static/gujarat_fire_history.csv'
+            ]
+            
+            fire_df = None
+            for fire_file in fire_files:
+                try:
+                    fire_df = pd.read_csv(fire_file)
+                    break
+                except FileNotFoundError:
+                    continue
+            
+            if fire_df is not None and not fire_df.empty:
+                from datetime import datetime, timedelta
+                today = datetime.now().strftime('%Y-%m-%d')
+                week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                
+                today_fires = len(fire_df[fire_df['acq_date'] == today])
+                week_fires = len(fire_df[fire_df['acq_date'] >= week_ago])
+                total_fires = len(fire_df)
+                
+                stats_text += f"\n🔥 Fire Monitoring:\n"
+                stats_text += f"   Today: {today_fires} incidents\n"
+                stats_text += f"   Last 7 days: {week_fires} incidents\n"
+                stats_text += f"   Total tracked: {total_fires} incidents\n"
+                
+                if today_fires == 0 and week_fires == 0:
+                    stats_text += f"   ✅ No recent fire activity detected\n"
+            else:
+                stats_text += f"\n🔥 Fire Monitoring:\n"
+                stats_text += f"   ✅ No fire incidents detected\n"
+                stats_text += f"   🛰️ NASA MODIS monitoring active\n"
+        except Exception as e:
+            logger.error(f"Error getting fire stats: {e}")
+            stats_text += f"\n🔥 Fire Monitoring: Data unavailable\n"
+        
+        stats_text += f"\n🛰️ Data Sources:\n"
+        stats_text += f"   • NASA MODIS satellites\n"
+        stats_text += f"   • Open-Meteo weather API\n"
+        stats_text += f"   • Gujarat government records\n"
+        stats_text += f"\n🤖 Bot: @VillaegWarningbot"
+        
+        await update.message.reply_text(stats_text)
+        
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        await update.message.reply_text("❌ Error fetching statistics.")
 
 async def process_pending_alerts(application):
     """Process pending alerts from the website"""
@@ -478,6 +652,8 @@ def main():
     application.add_handler(CommandHandler("mystatus", mystatus))
     application.add_handler(CommandHandler("fire", fire_alerts))
     application.add_handler(CommandHandler("weather", weather_command))
+    application.add_handler(CommandHandler("broadcast", broadcast_command))
+    application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Add job to process pending alerts every 30 seconds

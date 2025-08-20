@@ -334,6 +334,82 @@ def weather_map_data():
             'error': 'Failed to fetch weather data'
         })
 
+@app.route('/api/fire_data')
+def fire_data():
+    """Get fire incident data for map display"""
+    try:
+        # Try to load fire data from multiple locations
+        fire_files = [
+            'static/gujarat_fire_history.csv',
+            'gujarat_fire_history.csv'
+        ]
+        
+        fire_df = None
+        for fire_file in fire_files:
+            try:
+                fire_df = pd.read_csv(fire_file)
+                break
+            except FileNotFoundError:
+                continue
+        
+        if fire_df is None or fire_df.empty:
+            return jsonify({
+                'success': True,
+                'fire_incidents': [],
+                'message': 'No fire incidents currently detected in Gujarat'
+            })
+        
+        # Filter for recent incidents only (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        # Filter recent incidents
+        recent_fires = fire_df[fire_df['acq_date'] >= week_ago]
+        
+        if recent_fires.empty:
+            return jsonify({
+                'success': True,
+                'fire_incidents': [],
+                'message': 'No recent fire incidents in Gujarat (last 7 days)'
+            })
+        
+        # Convert to list of dictionaries for JSON response
+        fire_incidents = []
+        for _, row in recent_fires.iterrows():
+            # Skip invalid coordinates
+            lat = float(row.get('latitude', 0))
+            lon = float(row.get('longitude', 0))
+            
+            if lat == 0 or lon == 0:
+                continue
+                
+            incident = {
+                'latitude': lat,
+                'longitude': lon,
+                'district': str(row.get('district', 'Unknown')),
+                'taluka': str(row.get('taluka', 'Unknown')),
+                'fire_type': str(row.get('fire_type', 'Vegetation')),
+                'severity': str(row.get('severity', 'Medium')),
+                'confidence': int(row.get('confidence', 0)),
+                'area_affected': float(row.get('area_affected', 0)),
+                'date': str(row.get('acq_date', '')),
+                'time': str(row.get('acq_time', ''))
+            }
+            fire_incidents.append(incident)
+        
+        return jsonify({
+            'success': True,
+            'fire_incidents': fire_incidents,
+            'message': f'{len(fire_incidents)} fire incidents in last 7 days' if fire_incidents else 'No recent fire incidents detected'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fire data: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch fire data'
+        })
+
 @app.route('/api/subscriber_stats')
 @login_required
 def subscriber_stats():
@@ -370,6 +446,48 @@ def subscriber_stats():
         return jsonify({
             'success': False,
             'error': 'Failed to get subscriber stats'
+        })
+
+@app.route('/api/fire_alerts/<district>/<taluka>')
+def get_fire_alerts_for_area(district, taluka):
+    """Get fire alerts for specific district/taluka"""
+    try:
+        fire_df = pd.read_csv('static/gujarat_fire_history.csv')
+        
+        # Filter for the specific area and recent incidents (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        area_fires = fire_df[
+            (fire_df['district'] == district) & 
+            (fire_df['taluka'] == taluka) &
+            (fire_df['acq_date'] >= week_ago)
+        ]
+        
+        alerts = []
+        for _, fire in area_fires.iterrows():
+            alert = {
+                'date': fire.get('acq_date', ''),
+                'latitude': float(fire.get('latitude', 0)),
+                'longitude': float(fire.get('longitude', 0)),
+                'fire_type': fire.get('fire_type', 'Vegetation'),
+                'severity': fire.get('severity', 'Medium'),
+                'confidence': int(fire.get('confidence', 0)),
+                'area_affected': float(fire.get('area_affected', 0))
+            }
+            alerts.append(alert)
+        
+        return jsonify({
+            'success': True,
+            'alerts': alerts,
+            'count': len(alerts)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fire alerts for {district}/{taluka}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get fire alerts'
         })
 
 if __name__ == '__main__':
