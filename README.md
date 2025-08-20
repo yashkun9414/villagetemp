@@ -1,18 +1,29 @@
-# 🌡️ Gujarat Weather Alert System
+# 🌡️🔥 Gujarat Weather & Fire Alert System
 
-A clean, production-ready weather alert system with interactive map, admin panel, and Telegram bot integration for Gujarat, India.
+A comprehensive real-time weather monitoring and fire alert system with NASA satellite integration, interactive mapping, and automated Telegram notifications for Gujarat, India.
 
 ## ✨ Features
 
-### 🌐 Web Application
-- **Interactive Map**: Leaflet-based map showing Gujarat districts and talukas
-- **Admin Panel**: Secure dashboard for managing alerts
-- **Responsive Design**: Works on all devices
-- **Real-time Data**: CSV-based location data with 33 districts, 235 talukas
+### 🔥 Fire Alert System
+- **NASA MODIS Integration**: Real satellite fire detection data from NASA FIRMS
+- **Automated Daily Updates**: Scheduled fetching twice daily (6 AM & 6 PM)
+- **Interactive Fire Map**: Visual fire incidents with severity and confidence indicators
+- **Coordinate-based Filtering**: Exact latitude/longitude fire locations
+- **District/Taluka Mapping**: Automatic geographic assignment of fire incidents
 
-### 🤖 Telegram Bot (@VillaegWarningbot)
-- **Location Subscription**: Users choose district → taluka for alerts
-- **Interactive Commands**: /start, /subscribe, /unsubscribe, /mystatus, /help
+### 🌐 Enhanced Web Application
+- **Dual-layer Interactive Map**: Weather stations + fire incidents on Leaflet map
+- **Smart Filtering**: Filter by district/taluka to show relevant fire alerts
+- **Real-time Updates**: Live weather and fire data refresh
+- **Admin Panel**: Secure dashboard for managing alerts and monitoring system
+- **Responsive Design**: Works on all devices with mobile optimization
+
+### 🤖 Enhanced Telegram Bot (@VillaegWarningbot)
+- **Multi-alert Subscriptions**: Weather + fire alerts for chosen areas
+- **Fire Command**: `/fire` - Check recent fire alerts in your area
+- **Weather Command**: `/weather` - Current weather with temperature alerts
+- **Admin Broadcasting**: Send custom messages to specific taluka subscribers
+- **Statistics**: `/stats` - View bot and fire incident statistics
 - **24/7 Availability**: Hosted independently for continuous operation
 
 ## 🚀 Quick Start
@@ -97,13 +108,22 @@ git push heroku main
 
 ## 🤖 Bot Commands
 
+### User Commands
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcome message and instructions |
-| `/subscribe` | Choose district and taluka for alerts |
-| `/unsubscribe` | Stop receiving alerts |
-| `/mystatus` | Check current subscription |
-| `/help` | Get help and usage info |
+| `/start` | Welcome message and setup instructions |
+| `/subscribe` | Choose district and taluka for weather & fire alerts |
+| `/weather` | Current weather for your subscribed area |
+| `/fire` | Recent fire alerts in your area (NASA satellite data) |
+| `/mystatus` | Check current subscription status |
+| `/unsubscribe` | Stop receiving all alerts |
+| `/stats` | View bot statistics and fire incident counts |
+| `/help` | Comprehensive help and usage info |
+
+### Admin Commands
+| Command | Description |
+|---------|-------------|
+| `/broadcast <district> <taluka> <message>` | Send custom message to specific area subscribers |
 
 ## 🔧 Configuration
 

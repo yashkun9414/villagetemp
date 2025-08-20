@@ -61,9 +61,9 @@ def filter_gujarat_fires(global_df):
     
     logger.info("🔍 Filtering for Gujarat region...")
     
-    # Gujarat bounding box coordinates
-    lat_min, lat_max = 20.0, 24.75
-    lon_min, lon_max = 68.0, 74.5
+    # Gujarat bounding box coordinates (more precise)
+    lat_min, lat_max = 20.1, 24.7
+    lon_min, lon_max = 68.2, 74.4
     
     # Filter for Gujarat region
     gujarat_df = global_df[
@@ -75,9 +75,18 @@ def filter_gujarat_fires(global_df):
     
     logger.info(f"🔥 Found {len(gujarat_df)} fire incidents in Gujarat region")
     
-    # Filter high-confidence detections (≥80%)
-    high_confidence = gujarat_df[gujarat_df['confidence'] >= 80]
-    logger.info(f"⚠️ High confidence fires (≥80%): {len(high_confidence)}")
+    # Filter for today's date only (real-time data)
+    today = datetime.now().strftime('%Y-%m-%d')
+    if 'acq_date' in gujarat_df.columns:
+        gujarat_df['acq_date'] = pd.to_datetime(gujarat_df['acq_date']).dt.strftime('%Y-%m-%d')
+        today_fires = gujarat_df[gujarat_df['acq_date'] == today]
+        logger.info(f"📅 Today's fires ({today}): {len(today_fires)}")
+        gujarat_df = today_fires
+    
+    # Filter high-confidence detections (≥70% for more inclusive detection)
+    if not gujarat_df.empty:
+        high_confidence = gujarat_df[gujarat_df['confidence'] >= 70]
+        logger.info(f"⚠️ High confidence fires (≥70%): {len(high_confidence)}")
     
     return gujarat_df
 
@@ -195,9 +204,39 @@ def update_fire_history():
     
     # Filter for Gujarat
     gujarat_fire_df = filter_gujarat_fires(global_fire_df)
+    
+    # Load existing fire history
+    fire_history_file = 'gujarat_fire_history.csv'
+    static_file = 'static/gujarat_fire_history.csv'
+    
     if gujarat_fire_df.empty:
         logger.info("ℹ️ No fire incidents found in Gujarat region today")
-        # Still return True as this is not an error
+        
+        # Update existing file to remove old test data and keep only recent real data
+        if os.path.exists(fire_history_file):
+            try:
+                existing_df = pd.read_csv(fire_history_file)
+                
+                # Keep only data from last 30 days and real NASA MODIS data
+                from datetime import datetime, timedelta
+                thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+                
+                # Filter for recent data and real NASA sources
+                recent_df = existing_df[
+                    (existing_df['acq_date'] >= thirty_days_ago) & 
+                    (existing_df['source'] == 'NASA MODIS')
+                ]
+                
+                logger.info(f"📊 Cleaned fire history: {len(recent_df)} recent records")
+                
+                # Save cleaned data
+                recent_df.to_csv(fire_history_file, index=False)
+                if os.path.exists('static'):
+                    recent_df.to_csv(static_file, index=False)
+                
+            except Exception as e:
+                logger.error(f"❌ Error cleaning fire data: {e}")
+        
         return True
     
     # Map to districts/talukas
@@ -206,24 +245,22 @@ def update_fire_history():
     # Process the data
     processed_fire_df = process_fire_data(mapped_fire_df)
     
-    # Load existing fire history
-    fire_history_file = 'gujarat_fire_history.csv'
-    
     if os.path.exists(fire_history_file):
         try:
             existing_df = pd.read_csv(fire_history_file)
             logger.info(f"📊 Loaded {len(existing_df)} existing fire records")
             
-            # Combine with new data (avoid duplicates by date/location)
-            if not processed_fire_df.empty:
-                # Remove today's data from existing (to avoid duplicates)
-                today = datetime.now().strftime('%Y-%m-%d')
-                existing_df = existing_df[existing_df['acq_date'] != today]
-                
-                # Combine
-                combined_df = pd.concat([existing_df, processed_fire_df], ignore_index=True)
-            else:
-                combined_df = existing_df
+            # Remove today's data from existing (to avoid duplicates)
+            today = datetime.now().strftime('%Y-%m-%d')
+            existing_df = existing_df[existing_df['acq_date'] != today]
+            
+            # Keep only recent data (last 30 days)
+            from datetime import timedelta
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            existing_df = existing_df[existing_df['acq_date'] >= thirty_days_ago]
+            
+            # Combine with new data
+            combined_df = pd.concat([existing_df, processed_fire_df], ignore_index=True)
                 
         except Exception as e:
             logger.error(f"❌ Error reading existing fire data: {e}")
@@ -237,7 +274,6 @@ def update_fire_history():
         logger.info(f"✅ Fire history updated: {len(combined_df)} total records")
         
         # Also save to static folder for web access
-        static_file = 'static/gujarat_fire_history.csv'
         if os.path.exists('static'):
             combined_df.to_csv(static_file, index=False)
             logger.info(f"✅ Fire history copied to static folder")
@@ -248,12 +284,14 @@ def update_fire_history():
         logger.info(f"🔥 Today's incidents: {len(today_incidents)}")
         
         if len(today_incidents) > 0:
-            high_confidence = today_incidents[today_incidents['confidence'] >= 80]
+            high_confidence = today_incidents[today_incidents['confidence'] >= 70]
             logger.info(f"⚠️ High confidence incidents today: {len(high_confidence)}")
             
             # Show some examples
             for _, incident in high_confidence.head(3).iterrows():
                 logger.info(f"   🔥 {incident.get('district', 'Unknown')} → {incident.get('taluka', 'Unknown')} ({incident.get('confidence', 'N/A')}%)")
+        else:
+            logger.info("✅ No fire incidents detected in Gujarat today")
         
         return True
         

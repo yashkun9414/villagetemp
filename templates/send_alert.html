@@ -103,11 +103,50 @@
                 <h5><i class="fas fa-users me-2"></i>Subscriber Info</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Select a district and taluka to see subscriber information.</p>
-                <div id="subscriberInfo" style="display: none;">
-                    <p><strong>Subscribers:</strong> <span id="subscriberCount">0</span></p>
-                    <small class="text-muted">Users will receive the alert via Telegram bot.</small>
+                <div id="subscriberInfoDefault">
+                    <p class="text-muted">Select a district and taluka to see subscriber information.</p>
                 </div>
+                <div id="subscriberInfo" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Target Area:</strong>
+                        <span id="targetArea" class="text-muted"></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <strong>Subscribers:</strong>
+                        <span id="subscriberCount" class="badge bg-primary">0</span>
+                    </div>
+                    <div id="subscriberStatus"></div>
+                    <small class="text-muted">Users will receive the alert via Telegram bot (@VillaegWarningbot).</small>
+                </div>
+                <div id="subscriberLoading" style="display: none;">
+                    <div class="text-center">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0 text-muted">Checking subscribers...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="fab fa-telegram me-2"></i>Bot Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Bot Status:</span>
+                    <span class="badge bg-success">Online</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <span>Bot Username:</span>
+                    <a href="https://t.me/VillaegWarningbot" target="_blank" class="text-decoration-none">
+                        @VillaegWarningbot
+                    </a>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    Users can subscribe using /subscribe command
+                </small>
             </div>
         </div>
     </div>
@@ -149,11 +188,75 @@ document.getElementById('districtSelect').addEventListener('change', function() 
     }
 });
 
+// Handle taluka selection to show subscriber info
+document.getElementById('talukaSelect').addEventListener('change', function() {
+    const district = document.getElementById('districtSelect').value;
+    const taluka = this.value;
+    
+    if (district && taluka) {
+        showSubscriberInfo(district, taluka);
+    } else {
+        hideSubscriberInfo();
+    }
+});
+
+function showSubscriberInfo(district, taluka) {
+    const defaultInfo = document.getElementById('subscriberInfoDefault');
+    const subscriberInfo = document.getElementById('subscriberInfo');
+    const loading = document.getElementById('subscriberLoading');
+    
+    // Show loading
+    defaultInfo.style.display = 'none';
+    subscriberInfo.style.display = 'none';
+    loading.style.display = 'block';
+    
+    // Fetch subscriber count
+    fetch(`/get_subscriber_count/${district}/${taluka}`)
+        .then(response => response.json())
+        .then(data => {
+            loading.style.display = 'none';
+            
+            if (data.success) {
+                document.getElementById('targetArea').textContent = `${taluka}, ${district}`;
+                document.getElementById('subscriberCount').textContent = data.count;
+                
+                const statusDiv = document.getElementById('subscriberStatus');
+                if (data.count > 0) {
+                    statusDiv.innerHTML = `<div class="alert alert-success small p-2 mb-2">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Ready to send alert to ${data.count} subscriber${data.count !== 1 ? 's' : ''}
+                    </div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="alert alert-warning small p-2 mb-2">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        No subscribers in this area yet. Ask users to subscribe first.
+                    </div>`;
+                }
+                
+                subscriberInfo.style.display = 'block';
+            } else {
+                defaultInfo.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching subscriber count:', error);
+            loading.style.display = 'none';
+            defaultInfo.style.display = 'block';
+        });
+}
+
+function hideSubscriberInfo() {
+    document.getElementById('subscriberInfoDefault').style.display = 'block';
+    document.getElementById('subscriberInfo').style.display = 'none';
+    document.getElementById('subscriberLoading').style.display = 'none';
+}
+
 // Form validation
 document.getElementById('alertForm').addEventListener('submit', function(e) {
     const district = document.getElementById('districtSelect').value;
     const taluka = document.getElementById('talukaSelect').value;
     const message = document.querySelector('textarea[name="message"]').value;
+    const subscriberCount = document.getElementById('subscriberCount').textContent;
     
     if (!district || !taluka || !message.trim()) {
         e.preventDefault();
@@ -161,9 +264,16 @@ document.getElementById('alertForm').addEventListener('submit', function(e) {
         return false;
     }
     
-    if (!confirm(`Are you sure you want to send this alert to ${taluka}, ${district}?`)) {
-        e.preventDefault();
-        return false;
+    if (subscriberCount === '0') {
+        if (!confirm(`No subscribers found for ${taluka}, ${district}. Do you still want to queue this alert? (It will be sent when users subscribe)`)) {
+            e.preventDefault();
+            return false;
+        }
+    } else {
+        if (!confirm(`Are you sure you want to send this alert to ${subscriberCount} subscriber${subscriberCount !== '1' ? 's' : ''} in ${taluka}, ${district}?`)) {
+            e.preventDefault();
+            return false;
+        }
     }
 });
 </script>

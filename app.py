@@ -198,30 +198,100 @@ def get_talukas(district):
     district_talukas = talukas[talukas['District Name'] == district]['Taluka Name'].unique()
     return jsonify([{'value': t, 'text': t} for t in district_talukas])
 
+@app.route('/get_subscriber_count/<district>/<taluka>')
+@login_required
+def get_subscriber_count(district, taluka):
+    """Get subscriber count for specific district/taluka"""
+    try:
+        from shared_data import get_subscribers_for_area
+        
+        subscribers = get_subscribers_for_area(district, taluka)
+        count = len(subscribers) if subscribers else 0
+        
+        return jsonify({
+            'success': True,
+            'count': count,
+            'district': district,
+            'taluka': taluka
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting subscriber count: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get subscriber count'
+        })
+
 @app.route('/demo_alerts')
 @login_required
 def demo_alerts():
-    demo_alerts = [
-        {
-            'type': 'High Temperature',
-            'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated!',
-            'district': 'AHMADABAD',
-            'taluka': 'Bavla'
-        },
-        {
-            'type': 'Fire Risk',
-            'message': 'Fire risk alert: High fire risk due to dry conditions. Avoid outdoor burning.',
-            'district': 'RAJKOT',
-            'taluka': 'Gondal'
-        },
-        {
-            'type': 'Weather Warning',
-            'message': 'Weather warning: Strong winds expected. Secure loose objects.',
-            'district': 'SURAT',
-            'taluka': 'Bardoli'
-        }
-    ]
-    return render_template('demo_alerts.html', alerts=demo_alerts)
+    try:
+        from shared_data import get_subscribers_for_area, load_subscribers
+        
+        demo_alerts = [
+            {
+                'type': 'High Temperature',
+                'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated and avoid outdoor activities!',
+                'district': 'AHMADABAD',
+                'taluka': 'Bavla'
+            },
+            {
+                'type': 'Fire Risk',
+                'message': 'Fire risk alert: High fire risk due to dry conditions. Avoid outdoor burning and report any smoke immediately.',
+                'district': 'RAJKOT',
+                'taluka': 'Gondal'
+            },
+            {
+                'type': 'Weather Warning',
+                'message': 'Weather warning: Strong winds expected (40+ km/h). Secure loose objects and avoid travel if possible.',
+                'district': 'SURAT',
+                'taluka': 'Bardoli'
+            },
+            {
+                'type': 'Cold Wave',
+                'message': 'Cold wave alert: Temperature expected to drop below 5°C. Protect crops and livestock from cold.',
+                'district': 'BANASKANTHA',
+                'taluka': 'Deesa'
+            },
+            {
+                'type': 'Heavy Rain',
+                'message': 'Heavy rainfall alert: 50+ mm rain expected in next 24 hours. Avoid waterlogged areas.',
+                'district': 'VALSAD',
+                'taluka': 'Valsad'
+            }
+        ]
+        
+        # Add subscriber count for each alert
+        for alert in demo_alerts:
+            subscribers = get_subscribers_for_area(alert['district'], alert['taluka'])
+            alert['subscriber_count'] = len(subscribers) if subscribers else 0
+        
+        # Get overall subscriber statistics
+        all_subscribers = load_subscribers()
+        total_subscribers = sum(len(users) for users in all_subscribers.values())
+        areas_with_subscribers = len([k for k, v in all_subscribers.items() if v])
+        
+        return render_template('demo_alerts.html', 
+                             alerts=demo_alerts,
+                             total_subscribers=total_subscribers,
+                             areas_with_subscribers=areas_with_subscribers)
+        
+    except Exception as e:
+        logger.error(f"Error loading demo alerts: {e}")
+        # Fallback to basic alerts without subscriber info
+        demo_alerts = [
+            {
+                'type': 'High Temperature',
+                'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated!',
+                'district': 'AHMADABAD',
+                'taluka': 'Bavla',
+                'subscriber_count': 0
+            }
+        ]
+        return render_template('demo_alerts.html', 
+                             alerts=demo_alerts,
+                             total_subscribers=0,
+                             areas_with_subscribers=0)
 
 @app.route('/send_demo_alert', methods=['POST'])
 @login_required
@@ -231,11 +301,39 @@ def send_demo_alert():
     taluka = data.get('taluka')
     message = data.get('message')
     
-    # Log the demo alert (bot runs separately)
-    logger.info(f"Demo alert: {district} -> {taluka}: {message}")
-    
-    # Simulate success for demo
-    return jsonify({'success': True})
+    try:
+        from shared_data import queue_alert, get_subscribers_for_area
+        
+        # Check if there are subscribers for this area
+        subscribers = get_subscribers_for_area(district, taluka)
+        
+        if subscribers:
+            # Queue the demo alert
+            if queue_alert(district, taluka, f"🧪 DEMO ALERT:\n\n{message}", "demo"):
+                logger.info(f"Demo alert queued: {district} -> {taluka}: {message}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Demo alert sent to {len(subscribers)} subscribers in {taluka}, {district}',
+                    'subscriber_count': len(subscribers)
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to queue demo alert'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'No subscribers found for {taluka}, {district}. Ask users to subscribe first using /subscribe command.',
+                'subscriber_count': 0
+            })
+            
+    except Exception as e:
+        logger.error(f"Error sending demo alert: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'System error: {str(e)}'
+        })
 
 @app.route('/bot_status')
 @login_required
@@ -334,6 +432,82 @@ def weather_map_data():
             'error': 'Failed to fetch weather data'
         })
 
+@app.route('/api/fire_data')
+def fire_data():
+    """Get fire incident data for map display"""
+    try:
+        # Try to load fire data from multiple locations
+        fire_files = [
+            'static/gujarat_fire_history.csv',
+            'gujarat_fire_history.csv'
+        ]
+        
+        fire_df = None
+        for fire_file in fire_files:
+            try:
+                fire_df = pd.read_csv(fire_file)
+                break
+            except FileNotFoundError:
+                continue
+        
+        if fire_df is None or fire_df.empty:
+            return jsonify({
+                'success': True,
+                'fire_incidents': [],
+                'message': 'No fire incidents currently detected in Gujarat'
+            })
+        
+        # Filter for recent incidents only (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        # Filter recent incidents
+        recent_fires = fire_df[fire_df['acq_date'] >= week_ago]
+        
+        if recent_fires.empty:
+            return jsonify({
+                'success': True,
+                'fire_incidents': [],
+                'message': 'No recent fire incidents in Gujarat (last 7 days)'
+            })
+        
+        # Convert to list of dictionaries for JSON response
+        fire_incidents = []
+        for _, row in recent_fires.iterrows():
+            # Skip invalid coordinates
+            lat = float(row.get('latitude', 0))
+            lon = float(row.get('longitude', 0))
+            
+            if lat == 0 or lon == 0:
+                continue
+                
+            incident = {
+                'latitude': lat,
+                'longitude': lon,
+                'district': str(row.get('district', 'Unknown')),
+                'taluka': str(row.get('taluka', 'Unknown')),
+                'fire_type': str(row.get('fire_type', 'Vegetation')),
+                'severity': str(row.get('severity', 'Medium')),
+                'confidence': int(row.get('confidence', 0)),
+                'area_affected': float(row.get('area_affected', 0)),
+                'date': str(row.get('acq_date', '')),
+                'time': str(row.get('acq_time', ''))
+            }
+            fire_incidents.append(incident)
+        
+        return jsonify({
+            'success': True,
+            'fire_incidents': fire_incidents,
+            'message': f'{len(fire_incidents)} fire incidents in last 7 days' if fire_incidents else 'No recent fire incidents detected'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fire data: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch fire data'
+        })
+
 @app.route('/api/subscriber_stats')
 @login_required
 def subscriber_stats():
@@ -370,6 +544,83 @@ def subscriber_stats():
         return jsonify({
             'success': False,
             'error': 'Failed to get subscriber stats'
+        })
+
+@app.route('/subscribers')
+@login_required
+def view_subscribers():
+    """View all subscribers"""
+    try:
+        from shared_data import load_subscribers
+        
+        subscribers = load_subscribers()
+        
+        # Convert to list format for display
+        subscriber_list = []
+        for key, users in subscribers.items():
+            if users:
+                district, taluka = key.split('_', 1)
+                subscriber_list.append({
+                    'district': district,
+                    'taluka': taluka,
+                    'count': len(users),
+                    'user_ids': users
+                })
+        
+        # Sort by subscriber count (descending)
+        subscriber_list.sort(key=lambda x: x['count'], reverse=True)
+        
+        total_subscribers = sum(len(users) for users in subscribers.values())
+        
+        return render_template('subscribers.html', 
+                             subscribers=subscriber_list,
+                             total_subscribers=total_subscribers)
+        
+    except Exception as e:
+        logger.error(f"Error loading subscribers: {e}")
+        flash('Error loading subscriber data', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/api/fire_alerts/<district>/<taluka>')
+def get_fire_alerts_for_area(district, taluka):
+    """Get fire alerts for specific district/taluka"""
+    try:
+        fire_df = pd.read_csv('static/gujarat_fire_history.csv')
+        
+        # Filter for the specific area and recent incidents (last 7 days)
+        from datetime import datetime, timedelta
+        week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        area_fires = fire_df[
+            (fire_df['district'] == district) & 
+            (fire_df['taluka'] == taluka) &
+            (fire_df['acq_date'] >= week_ago)
+        ]
+        
+        alerts = []
+        for _, fire in area_fires.iterrows():
+            alert = {
+                'date': fire.get('acq_date', ''),
+                'latitude': float(fire.get('latitude', 0)),
+                'longitude': float(fire.get('longitude', 0)),
+                'fire_type': fire.get('fire_type', 'Vegetation'),
+                'severity': fire.get('severity', 'Medium'),
+                'confidence': int(fire.get('confidence', 0)),
+                'area_affected': float(fire.get('area_affected', 0))
+            }
+            alerts.append(alert)
+        
+        return jsonify({
+            'success': True,
+            'alerts': alerts,
+            'count': len(alerts)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting fire alerts for {district}/{taluka}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get fire alerts'
         })
 
 if __name__ == '__main__':
