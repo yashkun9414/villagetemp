@@ -198,30 +198,100 @@ def get_talukas(district):
     district_talukas = talukas[talukas['District Name'] == district]['Taluka Name'].unique()
     return jsonify([{'value': t, 'text': t} for t in district_talukas])
 
+@app.route('/get_subscriber_count/<district>/<taluka>')
+@login_required
+def get_subscriber_count(district, taluka):
+    """Get subscriber count for specific district/taluka"""
+    try:
+        from shared_data import get_subscribers_for_area
+        
+        subscribers = get_subscribers_for_area(district, taluka)
+        count = len(subscribers) if subscribers else 0
+        
+        return jsonify({
+            'success': True,
+            'count': count,
+            'district': district,
+            'taluka': taluka
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting subscriber count: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get subscriber count'
+        })
+
 @app.route('/demo_alerts')
 @login_required
 def demo_alerts():
-    demo_alerts = [
-        {
-            'type': 'High Temperature',
-            'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated!',
-            'district': 'AHMADABAD',
-            'taluka': 'Bavla'
-        },
-        {
-            'type': 'Fire Risk',
-            'message': 'Fire risk alert: High fire risk due to dry conditions. Avoid outdoor burning.',
-            'district': 'RAJKOT',
-            'taluka': 'Gondal'
-        },
-        {
-            'type': 'Weather Warning',
-            'message': 'Weather warning: Strong winds expected. Secure loose objects.',
-            'district': 'SURAT',
-            'taluka': 'Bardoli'
-        }
-    ]
-    return render_template('demo_alerts.html', alerts=demo_alerts)
+    try:
+        from shared_data import get_subscribers_for_area, load_subscribers
+        
+        demo_alerts = [
+            {
+                'type': 'High Temperature',
+                'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated and avoid outdoor activities!',
+                'district': 'AHMADABAD',
+                'taluka': 'Bavla'
+            },
+            {
+                'type': 'Fire Risk',
+                'message': 'Fire risk alert: High fire risk due to dry conditions. Avoid outdoor burning and report any smoke immediately.',
+                'district': 'RAJKOT',
+                'taluka': 'Gondal'
+            },
+            {
+                'type': 'Weather Warning',
+                'message': 'Weather warning: Strong winds expected (40+ km/h). Secure loose objects and avoid travel if possible.',
+                'district': 'SURAT',
+                'taluka': 'Bardoli'
+            },
+            {
+                'type': 'Cold Wave',
+                'message': 'Cold wave alert: Temperature expected to drop below 5°C. Protect crops and livestock from cold.',
+                'district': 'BANASKANTHA',
+                'taluka': 'Deesa'
+            },
+            {
+                'type': 'Heavy Rain',
+                'message': 'Heavy rainfall alert: 50+ mm rain expected in next 24 hours. Avoid waterlogged areas.',
+                'district': 'VALSAD',
+                'taluka': 'Valsad'
+            }
+        ]
+        
+        # Add subscriber count for each alert
+        for alert in demo_alerts:
+            subscribers = get_subscribers_for_area(alert['district'], alert['taluka'])
+            alert['subscriber_count'] = len(subscribers) if subscribers else 0
+        
+        # Get overall subscriber statistics
+        all_subscribers = load_subscribers()
+        total_subscribers = sum(len(users) for users in all_subscribers.values())
+        areas_with_subscribers = len([k for k, v in all_subscribers.items() if v])
+        
+        return render_template('demo_alerts.html', 
+                             alerts=demo_alerts,
+                             total_subscribers=total_subscribers,
+                             areas_with_subscribers=areas_with_subscribers)
+        
+    except Exception as e:
+        logger.error(f"Error loading demo alerts: {e}")
+        # Fallback to basic alerts without subscriber info
+        demo_alerts = [
+            {
+                'type': 'High Temperature',
+                'message': 'Temperature alert: Expected high temperature of 45°C in your area today. Stay hydrated!',
+                'district': 'AHMADABAD',
+                'taluka': 'Bavla',
+                'subscriber_count': 0
+            }
+        ]
+        return render_template('demo_alerts.html', 
+                             alerts=demo_alerts,
+                             total_subscribers=0,
+                             areas_with_subscribers=0)
 
 @app.route('/send_demo_alert', methods=['POST'])
 @login_required
@@ -231,11 +301,39 @@ def send_demo_alert():
     taluka = data.get('taluka')
     message = data.get('message')
     
-    # Log the demo alert (bot runs separately)
-    logger.info(f"Demo alert: {district} -> {taluka}: {message}")
-    
-    # Simulate success for demo
-    return jsonify({'success': True})
+    try:
+        from shared_data import queue_alert, get_subscribers_for_area
+        
+        # Check if there are subscribers for this area
+        subscribers = get_subscribers_for_area(district, taluka)
+        
+        if subscribers:
+            # Queue the demo alert
+            if queue_alert(district, taluka, f"🧪 DEMO ALERT:\n\n{message}", "demo"):
+                logger.info(f"Demo alert queued: {district} -> {taluka}: {message}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Demo alert sent to {len(subscribers)} subscribers in {taluka}, {district}',
+                    'subscriber_count': len(subscribers)
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to queue demo alert'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'No subscribers found for {taluka}, {district}. Ask users to subscribe first using /subscribe command.',
+                'subscriber_count': 0
+            })
+            
+    except Exception as e:
+        logger.error(f"Error sending demo alert: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'System error: {str(e)}'
+        })
 
 @app.route('/bot_status')
 @login_required
@@ -447,6 +545,41 @@ def subscriber_stats():
             'success': False,
             'error': 'Failed to get subscriber stats'
         })
+
+@app.route('/subscribers')
+@login_required
+def view_subscribers():
+    """View all subscribers"""
+    try:
+        from shared_data import load_subscribers
+        
+        subscribers = load_subscribers()
+        
+        # Convert to list format for display
+        subscriber_list = []
+        for key, users in subscribers.items():
+            if users:
+                district, taluka = key.split('_', 1)
+                subscriber_list.append({
+                    'district': district,
+                    'taluka': taluka,
+                    'count': len(users),
+                    'user_ids': users
+                })
+        
+        # Sort by subscriber count (descending)
+        subscriber_list.sort(key=lambda x: x['count'], reverse=True)
+        
+        total_subscribers = sum(len(users) for users in subscribers.values())
+        
+        return render_template('subscribers.html', 
+                             subscribers=subscriber_list,
+                             total_subscribers=total_subscribers)
+        
+    except Exception as e:
+        logger.error(f"Error loading subscribers: {e}")
+        flash('Error loading subscriber data', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/api/fire_alerts/<district>/<taluka>')
 def get_fire_alerts_for_area(district, taluka):

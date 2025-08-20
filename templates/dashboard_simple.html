@@ -80,10 +80,16 @@
                         <a href="{{ url_for('send_alert') }}" class="btn btn-primary">
                             <i class="fas fa-exclamation-triangle"></i> Send Custom Alert
                         </a>
-                        <button class="btn btn-success" onclick="refreshAlerts()">
+                        <a href="{{ url_for('demo_alerts') }}" class="btn btn-warning">
+                            <i class="fas fa-play-circle"></i> Demo Alerts
+                        </a>
+                        <a href="{{ url_for('view_subscribers') }}" class="btn btn-success">
+                            <i class="fas fa-users"></i> View Subscribers
+                        </a>
+                        <button class="btn btn-info" onclick="refreshAlerts()">
                             <i class="fas fa-thermometer-half"></i> Check Weather
                         </button>
-                        <a href="https://t.me/VillaegWarningbot" target="_blank" class="btn btn-info">
+                        <a href="https://t.me/VillaegWarningbot" target="_blank" class="btn btn-secondary">
                             <i class="fab fa-telegram"></i> View Bot
                         </a>
                         <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">

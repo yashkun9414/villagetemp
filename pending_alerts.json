@@ -8,5 +8,135 @@
     "timestamp": "2025-08-08T17:13:26.618944",
     "sent": true,
     "sent_at": "2025-08-08T18:44:21.691264"
+  },
+  {
+    "id": "1755681109.22054",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nTemperature alert: Expected high temperature of 45\u00b0C in your area today. Stay hydrated and avoid outdoor activities!",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:41:49.220540",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:53.402988"
+  },
+  {
+    "id": "1755681330.03777",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nTemperature alert: Expected high temperature of 45\u00b0C in your area today. Stay hydrated and avoid outdoor activities!",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:45:30.037770",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:53.836090"
+  },
+  {
+    "id": "1755681656.380486",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea CMD TEST ALERT:\n\nTest alert from command line - please confirm if you receive this message!",
+    "type": "test",
+    "timestamp": "2025-08-20T14:50:56.380486",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:54.338926"
+  },
+  {
+    "id": "1755681864.712248",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea COMPLETE TEST ALERT - 14:54:24",
+    "type": "complete_test",
+    "timestamp": "2025-08-20T14:54:24.712248",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:54.765280"
+  },
+  {
+    "id": "1755681898.612568",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nTemperature alert: Expected high temperature of 45\u00b0C in your area today. Stay hydrated and avoid outdoor activities!",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:54:58.612568",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:55.223360"
+  },
+  {
+    "id": "1755681925.661711",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\n\ud83e\uddea TEST ALERT: This is a test message to verify the alert system is working correctly. Please ignore this message.",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:55:25.661711",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:55.701219"
+  },
+  {
+    "id": "1755681949.403475",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nhlo",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:55:49.403475",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:56.147201"
+  },
+  {
+    "id": "1755681958.546223",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nhlo",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:55:58.546223",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:56.615052"
+  },
+  {
+    "id": "1755681971.195701",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nTemperature alert: Expected high temperature of 45\u00b0C in your area today. Stay hydrated and avoid outdoor activities!",
+    "type": "demo",
+    "timestamp": "2025-08-20T14:56:11.195701",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:57.087394"
+  },
+  {
+    "id": "1755682239.283585",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea System test alert - 15:00:39",
+    "type": "system_test",
+    "timestamp": "2025-08-20T15:00:39.283585",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:57.541386"
+  },
+  {
+    "id": "1755682241.428101",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea System test alert - 15:00:41",
+    "type": "system_test",
+    "timestamp": "2025-08-20T15:00:41.428101",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:58.053882"
+  },
+  {
+    "id": "1755683899.609011",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83c\udf10 Web interface test - 15:28:19",
+    "type": "web_test",
+    "timestamp": "2025-08-20T15:28:19.609011",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:58.512192"
+  },
+  {
+    "id": "1755683958.508553",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea CMD TEST ALERT:\n\nFinal test - web interface is working! All admin pages are functional.",
+    "type": "test",
+    "timestamp": "2025-08-20T15:29:18.508553",
+    "sent": true,
+    "sent_at": "2025-08-20T15:35:58.997387"
   }
 ]

@@ -14,9 +14,37 @@
     </div>
 </div>
 
+<!-- System Statistics -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_subscribers }}</h3>
+                <p class="mb-0"><i class="fas fa-users me-2"></i>Total Subscribers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3>{{ areas_with_subscribers }}</h3>
+                <p class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Active Areas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3><i class="fab fa-telegram"></i></h3>
+                <p class="mb-0">@VillaegWarningbot</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="alert alert-info">
     <i class="fas fa-info-circle me-2"></i>
-    <strong>Demo Mode:</strong> These are sample alerts you can send to test the system. Click "Send Demo Alert" to send any of these alerts to the specified taluka.
+    <strong>Demo Mode:</strong> These are sample alerts you can send to test the system. Alerts will be sent to real Telegram subscribers in the specified areas. Make sure users have subscribed using <code>/subscribe</code> command first.
 </div>
 
 <div class="row">
@@ -50,15 +78,33 @@
                         <strong>District:</strong> {{ alert.district }}<br>
                         <strong>Taluka:</strong> {{ alert.taluka }}
                     </p>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-users me-1"></i>Subscribers:
+                        </small>
+                        <span class="badge {% if alert.subscriber_count > 0 %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                            {{ alert.subscriber_count }} users
+                        </span>
+                    </div>
                 </div>
             </div>
             <div class="card-footer">
+                {% if alert.subscriber_count > 0 %}
                 <button class="btn btn-primary w-100 send-demo-btn" 
                         data-district="{{ alert.district }}" 
                         data-taluka="{{ alert.taluka }}" 
                         data-message="{{ alert.message }}">
-                    <i class="fas fa-paper-plane me-2"></i>Send Demo Alert
+                    <i class="fas fa-paper-plane me-2"></i>Send to {{ alert.subscriber_count }} Subscribers
                 </button>
+                {% else %}
+                <button class="btn btn-outline-secondary w-100" disabled>
+                    <i class="fas fa-user-slash me-2"></i>No Subscribers Yet
+                </button>
+                <small class="text-muted d-block mt-2 text-center">
+                    Ask users to subscribe to {{ alert.taluka }}, {{ alert.district }} first
+                </small>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -205,18 +251,18 @@ document.querySelectorAll('.send-demo-btn').forEach(button => {
             
             if (data.success) {
                 successCount++;
-                this.innerHTML = '<i class="fas fa-check me-2"></i>Alert Sent!';
+                this.innerHTML = `<i class="fas fa-check me-2"></i>Sent to ${data.subscriber_count} Users!`;
                 this.classList.remove('btn-primary');
                 this.classList.add('btn-success');
                 
-                updateTestResults(`✅ Alert sent successfully to ${taluka}, ${district}`, 'success');
+                updateTestResults(`✅ ${data.message}`, 'success');
             } else {
                 failureCount++;
                 this.innerHTML = '<i class="fas fa-times me-2"></i>Failed';
                 this.classList.remove('btn-primary');
                 this.classList.add('btn-danger');
                 
-                updateTestResults(`❌ Failed to send alert to ${taluka}, ${district}. ${data.error || 'Unknown error'}`, 'danger');
+                updateTestResults(`❌ ${data.error || 'Unknown error'}`, 'danger');
             }
             
             // Update counters
