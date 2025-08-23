@@ -31,28 +31,6 @@ Real-time weather monitoring and fire alerts for Gujarat with NASA satellite dat
 
 
 ---
-
-## System Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   NASA MODIS    │    │  OpenMETEO    │    │  Telegram Bot   │
-│  Fire Satellite │────│      API        │────│      API        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │  Flask Web App  │
-                    │   (Python)      │
-                    └─────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   SQLite DB     │
-                    │ User Locations  │
-                    └─────────────────┘
-```
-
 ## Key Features
 
 * Fire detection (NASA MODIS)
