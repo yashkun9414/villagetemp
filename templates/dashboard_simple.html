@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <h2 class="mb-4">🌡️ Weather Alert Dashboard</h2>
+            <h2 class="mb-4">🌡️ {{ t('dashboard') }}</h2>
         </div>
     </div>
 
@@ -16,7 +16,7 @@
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <h3>{{ total_districts }}</h3>
-                    <p>Districts</p>
+                    <p>{{ t('districts') }}</p>
                 </div>
             </div>
         </div>
@@ -24,7 +24,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body text-center">
                     <h3>{{ total_talukas }}</h3>
-                    <p>Talukas</p>
+                    <p>{{ t('talukas') }}</p>
                 </div>
             </div>
         </div>
@@ -32,7 +32,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body text-center">
                     <h3 id="alert-count">0</h3>
-                    <p>Active Alerts</p>
+                    <p>{{ t('active_alerts') }}</p>
                 </div>
             </div>
         </div>

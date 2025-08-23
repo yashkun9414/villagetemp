@@ -138,5 +138,14 @@
     "timestamp": "2025-08-20T15:29:18.508553",
     "sent": true,
     "sent_at": "2025-08-20T15:35:58.997387"
+  },
+  {
+    "id": "1755685014.901528",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nAAAAA",
+    "type": "demo",
+    "timestamp": "2025-08-20T15:46:54.901528",
+    "sent": false
   }
 ]
