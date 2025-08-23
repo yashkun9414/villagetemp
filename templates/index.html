@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gujarat Weather & Fire Alert System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.3rem;
+        }
+
+        #map {
+            height: calc(100vh - 80px);
+            width: 100%;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            max-width: 320px;
+            z-index: 1000;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid #333;
+        }
+
+        .fire-marker {
+            background: #ff4444;
+            border: 2px solid #cc0000;
+        }
+
+        .temp-hot {
+            background: #ff0000;
+        }
+
+        .temp-warm {
+            background: #ff8800;
+        }
+
+        .temp-normal {
+            background: #00aa00;
+        }
+
+        .temp-cool {
+            background: #0088ff;
+        }
+
+        .temp-cold {
+            background: #0044ff;
+        }
+
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #667eea;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.5s;
+            font-weight: 500;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
+
+        .notification.success {
+            background-color: #28a745;
+        }
+
+        .notification.error {
+            background-color: #dc3545;
+        }
+
+        .notification.info {
+            background-color: #17a2b8;
+        }
+
+        .info-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .btn-toggle {
+            margin-bottom: 10px;
+        }
+
+        .btn-toggle.active {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-map-marked-alt me-2"></i>Gujarat Weather & Fire Alert Map
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link btn btn-outline-light ms-2 px-3" href="/admin">
+                    <i class="fas fa-cog me-1"></i>Admin
+                </a>
+                <a class="nav-link btn btn-outline-light ms-2 px-3" href="https://t.me/VillaegWarningbot"
+                    target="_blank">
+                    <i class="fab fa-telegram me-1"></i>Bot
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Map Container -->
+    <div class="position-relative">
+        <div id="loader-overlay" class="loader-overlay">
+            <div class="loader"></div>
+        </div>
+        <div id="notification" class="notification"></div>
+
+        <div id="map"></div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <h5 class="mb-3"><i class="fas fa-layer-group me-2"></i>Map Layers</h5>
+
+            <div class="mb-3">
+                <button id="toggleWeather" class="btn btn-primary btn-sm btn-toggle active w-100 mb-2">
+                    <i class="fas fa-thermometer-half me-2"></i>Weather Data
+                </button>
+                <button id="toggleFire" class="btn btn-danger btn-sm btn-toggle active w-100 mb-2">
+                    <i class="fas fa-fire me-2"></i>Fire Incidents
+                </button>
+                <div id="fire-status" class="small text-muted text-center" style="display: none;">
+                    <i class="fas fa-satellite me-1"></i>NASA MODIS Monitoring
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="mb-3">
+                <button id="getLocationBtn" class="btn btn-success w-100 mb-2">
+                    <i class="fas fa-location-arrow me-2"></i>My Location
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">District</label>
+                <select id="district-select" class="form-select form-select-sm">
+                    <option value="">All Districts</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Taluka</label>
+                <select id="taluka-select" class="form-select form-select-sm" disabled>
+                    <option value="">All Talukas</option>
+                </select>
+            </div>
+
+            <div id="info-panel" class="info-panel" style="display: none;">
+                <h6 id="info-title" class="fw-bold"></h6>
+                <div id="info-content"></div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <h6 class="fw-bold mb-2">Legend</h6>
+            <div class="legend-item">
+                <div class="legend-color fire-marker"></div>
+                <small>Fire Incidents (NASA)</small>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color temp-hot"></div>
+                <small>Hot (≥40°C)</small>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color temp-warm"></div>
+                <small>Warm (35-39°C)</small>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color temp-normal"></div>
+                <small>Normal (15-34°C)</small>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color temp-cool"></div>
+                <small>Cool (6-14°C)</small>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color temp-cold"></div>
+                <small>Cold (≤5°C)</small>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">🛰️ Real-time NASA MODIS monitoring</small>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let map;
+        let locationData = [];
+        let weatherMarkers = [];
+        let fireMarkers = [];
+        let showWeather = true;
+        let showFire = true;
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([22.30, 71.18], 7);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(map);
+        }
+
+        // Load location data for dropdowns
+        async function loadLocationData() {
+            try {
+                const response = await fetch('/static/merged_village_temperature_data.csv');
+                const csvText = await response.text();
+
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function (results) {
+                        locationData = results.data;
+                        populateDropdowns();
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading location data:', error);
+                showNotification('Error loading location data', 'error');
+            }
+        }
+
+        // Load and display weather data
+        async function loadWeatherData() {
+            if (!showWeather) return;
+
+            try {
+                showLoader(true);
+                const response = await fetch('/api/weather_map_data');
+                const data = await response.json();
+
+                if (data.success) {
+                    displayWeatherOnMap(data.locations);
+                    showNotification('Weather data loaded', 'success');
+                } else {
+                    console.error('Failed to load weather data:', data.error);
+                    showNotification('Failed to load weather data', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading weather data:', error);
+                showNotification('Error loading weather data', 'error');
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        // Load and display fire data
+        async function loadFireData() {
+            if (!showFire) return;
+
+            try {
+                const response = await fetch('/api/fire_data');
+                const data = await response.json();
+
+                if (data.success) {
+                    displayFireOnMap(data.fire_incidents);
+                    
+                    if (data.fire_incidents.length === 0) {
+                        showNotification(data.message || 'No fire incidents detected in Gujarat', 'info');
+                    } else {
+                        showNotification(`${data.fire_incidents.length} fire incidents loaded`, 'success');
+                    }
+                } else {
+                    console.error('Failed to load fire data:', data.error);
+                    showNotification('Failed to load fire data', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading fire data:', error);
+                showNotification('Error loading fire data', 'error');
+            }
+        }
+
+        // Display weather data on map
+        function displayWeatherOnMap(weatherLocations) {
+            // Clear existing weather markers
+            weatherMarkers.forEach(marker => map.removeLayer(marker));
+            weatherMarkers = [];
+
+            if (!showWeather) return;
+
+            weatherLocations.forEach(location => {
+                if (location.latitude && location.longitude) {
+                    const temp = location.current_temp;
+
+                    // Choose marker color based on temperature
+                    let markerColor = '#00aa00'; // Normal
+                    if (temp >= 40) markerColor = '#ff0000'; // Hot
+                    else if (temp >= 35) markerColor = '#ff8800'; // Warm
+                    else if (temp <= 5) markerColor = '#0044ff'; // Cold
+                    else if (temp <= 14) markerColor = '#0088ff'; // Cool
+
+                    const marker = L.circleMarker([location.latitude, location.longitude], {
+                        radius: 8,
+                        fillColor: markerColor,
+                        color: '#000',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+
+                    const isHot = temp >= 40;
+                    const isCold = temp <= 5;
+
+                    const popupContent = `
+                        <div style="min-width: 200px;">
+                            <h6><strong><i class="fas fa-map-marker-alt"></i> ${location.location}</strong></h6>
+                            <div class="mb-2">
+                                <strong>🌡️ Temperature:</strong> 
+                                <span class="${isHot ? 'text-danger' : isCold ? 'text-primary' : ''}">${temp}°C</span>
+                            </div>
+                            <div class="mb-2"><strong>📊 Range:</strong> ${location.max_temp}°C / ${location.min_temp}°C</div>
+                            <div class="mb-2"><strong>💧 Humidity:</strong> ${location.humidity}%</div>
+                            <div class="mb-2"><strong>💨 Wind:</strong> ${location.wind_speed} km/h</div>
+                            <div class="mb-2"><strong>☁️ Condition:</strong> ${location.weather_description}</div>
+                            ${isHot ? '<div class="alert alert-danger p-2 mt-2 mb-0"><small><i class="fas fa-exclamation-triangle"></i> HIGH TEMPERATURE ALERT</small></div>' : ''}
+                            ${isCold ? '<div class="alert alert-primary p-2 mt-2 mb-0"><small><i class="fas fa-snowflake"></i> LOW TEMPERATURE ALERT</small></div>' : ''}
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent);
+                    weatherMarkers.push(marker);
+                }
+            });
+        }
+
+        // Display fire incidents on map
+        function displayFireOnMap(fireIncidents) {
+            // Clear existing fire markers
+            fireMarkers.forEach(marker => map.removeLayer(marker));
+            fireMarkers = [];
+
+            // Update fire status indicator
+            const fireStatus = document.getElementById('fire-status');
+            if (fireIncidents.length === 0) {
+                fireStatus.innerHTML = '<i class="fas fa-check-circle text-success me-1"></i>No fire incidents detected';
+                fireStatus.style.display = 'block';
+            } else {
+                fireStatus.innerHTML = `<i class="fas fa-fire text-warning me-1"></i>${fireIncidents.length} incidents detected`;
+                fireStatus.style.display = 'block';
+            }
+
+            if (!showFire) return;
+
+            fireIncidents.forEach(incident => {
+                if (incident.latitude && incident.longitude) {
+                    // Fire marker with different sizes based on severity and confidence
+                    let radius = 6;
+                    let fillColor = '#ff4444';
+                    let borderColor = '#cc0000';
+                    
+                    if (incident.severity === 'High') {
+                        radius = 12;
+                        fillColor = '#ff0000';
+                        borderColor = '#990000';
+                    } else if (incident.severity === 'Medium') {
+                        radius = 9;
+                        fillColor = '#ff6600';
+                        borderColor = '#cc3300';
+                    } else {
+                        radius = 6;
+                        fillColor = '#ffaa00';
+                        borderColor = '#cc6600';
+                    }
+
+                    // Adjust opacity based on confidence
+                    const opacity = Math.max(0.4, incident.confidence / 100);
+
+                    const marker = L.circleMarker([incident.latitude, incident.longitude], {
+                        radius: radius,
+                        fillColor: fillColor,
+                        color: borderColor,
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: opacity
+                    }).addTo(map);
+
+                    // Enhanced popup with more details
+                    const confidenceColor = incident.confidence >= 80 ? 'text-success' : 
+                                          incident.confidence >= 60 ? 'text-warning' : 'text-danger';
+                    
+                    const popupContent = `
+                        <div style="min-width: 220px;">
+                            <h6><strong><i class="fas fa-fire text-danger"></i> Fire Detection</strong></h6>
+                            <div class="mb-2"><strong>📍 Location:</strong> ${incident.taluka}, ${incident.district}</div>
+                            <div class="mb-2"><strong>📊 Coordinates:</strong> ${incident.latitude.toFixed(4)}, ${incident.longitude.toFixed(4)}</div>
+                            <div class="mb-2"><strong>🔥 Type:</strong> ${incident.fire_type}</div>
+                            <div class="mb-2">
+                                <strong>⚠️ Severity:</strong> 
+                                <span class="badge ${incident.severity === 'High' ? 'bg-danger' : incident.severity === 'Medium' ? 'bg-warning text-dark' : 'bg-info'}">${incident.severity}</span>
+                            </div>
+                            <div class="mb-2"><strong>📏 Area:</strong> ${incident.area_affected} hectares</div>
+                            <div class="mb-2"><strong>📅 Date:</strong> ${incident.date}</div>
+                            <div class="mb-2"><strong>🕐 Time:</strong> ${incident.time || 'N/A'}</div>
+                            <div class="mb-2">
+                                <strong>🎯 Confidence:</strong> 
+                                <span class="${confidenceColor}">${incident.confidence}%</span>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">🛰️ NASA MODIS Detection</small>
+                            </div>
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent);
+                    fireMarkers.push(marker);
+                    
+                    // Store district/taluka info for filtering
+                    marker._fireData = {
+                        district: incident.district,
+                        taluka: incident.taluka
+                    };
+                }
+            });
+        }
+
+        // Populate dropdowns
+        function populateDropdowns() {
+            const districtSelect = document.getElementById('district-select');
+            const districts = [...new Set(locationData.map(item => item['District Name']))].filter(Boolean).sort();
+
+            districts.forEach(district => {
+                const option = document.createElement('option');
+                option.value = district;
+                option.textContent = district;
+                districtSelect.appendChild(option);
+            });
+        }
+
+        // Handle district selection
+        document.getElementById('district-select').addEventListener('change', function () {
+            const selectedDistrict = this.value;
+            const talukaSelect = document.getElementById('taluka-select');
+
+            // Clear taluka options
+            talukaSelect.innerHTML = '<option value="">All Talukas</option>';
+
+            if (selectedDistrict) {
+                talukaSelect.disabled = false;
+
+                const talukas = [...new Set(locationData
+                    .filter(item => item['District Name'] === selectedDistrict)
+                    .map(item => item['Taluka Name'])
+                )].filter(Boolean).sort();
+
+                talukas.forEach(taluka => {
+                    const option = document.createElement('option');
+                    option.value = taluka;
+                    option.textContent = taluka;
+                    talukaSelect.appendChild(option);
+                });
+
+                // Filter map to show only selected district
+                filterMapData(selectedDistrict, null);
+            } else {
+                talukaSelect.disabled = true;
+                // Show all data
+                filterMapData(null, null);
+            }
+        });
+
+        // Handle taluka selection
+        document.getElementById('taluka-select').addEventListener('change', function () {
+            const selectedDistrict = document.getElementById('district-select').value;
+            const selectedTaluka = this.value;
+
+            if (selectedTaluka && selectedDistrict) {
+                filterMapData(selectedDistrict, selectedTaluka);
+
+                // Try to get weather data for this specific location
+                loadTalukaWeather(selectedDistrict, selectedTaluka);
+            } else if (selectedDistrict) {
+                filterMapData(selectedDistrict, null);
+            } else {
+                filterMapData(null, null);
+            }
+        });
+
+        // Filter map data based on selection
+        function filterMapData(district, taluka) {
+            // Show/hide weather markers
+            weatherMarkers.forEach(marker => {
+                const popup = marker.getPopup();
+                if (popup) {
+                    const content = popup.getContent();
+                    const shouldShow = !district || content.includes(district);
+
+                    if (shouldShow && showWeather) {
+                        if (!map.hasLayer(marker)) map.addLayer(marker);
+                    } else {
+                        if (map.hasLayer(marker)) map.removeLayer(marker);
+                    }
+                }
+            });
+
+            // Show/hide fire markers with improved filtering
+            fireMarkers.forEach(marker => {
+                let shouldShow = true;
+
+                if (district && marker._fireData) {
+                    shouldShow = marker._fireData.district === district;
+                    if (taluka && shouldShow) {
+                        shouldShow = marker._fireData.taluka === taluka;
+                    }
+                } else if (district) {
+                    // Fallback to popup content matching
+                    const popup = marker.getPopup();
+                    if (popup) {
+                        const content = popup.getContent();
+                        shouldShow = content.includes(district);
+                        if (taluka && shouldShow) {
+                            shouldShow = content.includes(taluka);
+                        }
+                    }
+                }
+
+                if (shouldShow && showFire) {
+                    if (!map.hasLayer(marker)) map.addLayer(marker);
+                } else {
+                    if (map.hasLayer(marker)) map.removeLayer(marker);
+                }
+            });
+
+            // Update info panel with fire alerts for selected area
+            if (district && taluka) {
+                loadFireAlertsForArea(district, taluka);
+            }
+        }
+
+        // Load fire alerts for specific area
+        async function loadFireAlertsForArea(district, taluka) {
+            try {
+                const response = await fetch(`/api/fire_alerts/${district}/${taluka}`);
+                const data = await response.json();
+
+                if (data.success && data.alerts.length > 0) {
+                    const infoPanel = document.getElementById('info-panel');
+                    const infoContent = document.getElementById('info-content');
+                    
+                    let fireInfo = `<div class="alert alert-warning p-2 mb-2">
+                        <strong>🔥 ${data.count} Fire Alert(s) (Last 7 Days)</strong>
+                    </div>`;
+                    
+                    // Show recent high-confidence fires
+                    const recentFires = data.alerts
+                        .filter(alert => alert.confidence >= 70)
+                        .slice(0, 3);
+                    
+                    if (recentFires.length > 0) {
+                        fireInfo += '<div class="mb-2"><strong>Recent High-Confidence Fires:</strong></div>';
+                        recentFires.forEach(fire => {
+                            fireInfo += `<div class="small mb-1">
+                                📅 ${fire.date} - ${fire.fire_type} (${fire.confidence}%)
+                            </div>`;
+                        });
+                    }
+                    
+                    // Append to existing content
+                    const currentContent = infoContent.innerHTML;
+                    infoContent.innerHTML = currentContent + fireInfo;
+                }
+            } catch (error) {
+                console.error('Error loading fire alerts:', error);
+            }
+        }
+
+        // Load weather for specific taluka
+        async function loadTalukaWeather(district, taluka) {
+            try {
+                showLoader(true);
+                const response = await fetch(`/weather/${district}/${taluka}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    showLocationInfo(taluka, district, data.weather);
+                } else {
+                    showLocationInfo(taluka, district, null);
+                }
+            } catch (error) {
+                console.error('Error loading taluka weather:', error);
+                showLocationInfo(taluka, district, null);
+            } finally {
+                showLoader(false);
+            }
+        }
+
+        // Show location info
+        function showLocationInfo(taluka, district, weather = null) {
+            const infoPanel = document.getElementById('info-panel');
+            const infoTitle = document.getElementById('info-title');
+            const infoContent = document.getElementById('info-content');
+
+            infoTitle.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${taluka}, ${district}`;
+
+            if (weather) {
+                const temp = weather.current_temp;
+                const isHot = temp >= 40;
+                const isCold = temp <= 5;
+
+                infoContent.innerHTML = `
+                    <div class="mb-2">
+                        <strong>🌡️ Temperature:</strong> 
+                        <span class="${isHot ? 'text-danger' : isCold ? 'text-primary' : ''}">${temp}°C</span>
+                    </div>
+                    <div class="mb-2"><strong>📊 Range:</strong> ${weather.max_temp}°C / ${weather.min_temp}°C</div>
+                    <div class="mb-2"><strong>💧 Humidity:</strong> ${weather.humidity}%</div>
+                    <div class="mb-2"><strong>☁️ Condition:</strong> ${weather.weather_description}</div>
+                    ${isHot ? '<div class="alert alert-danger p-2 mt-2"><small>⚠️ High Temperature Alert</small></div>' : ''}
+                    ${isCold ? '<div class="alert alert-primary p-2 mt-2"><small>⚠️ Low Temperature Alert</small></div>' : ''}
+                `;
+            } else {
+                infoContent.innerHTML = '<p class="text-muted mb-0">Weather data not available for this location</p>';
+            }
+
+            infoPanel.style.display = 'block';
+        }
+
+        // Toggle weather layer
+        document.getElementById('toggleWeather').addEventListener('click', function () {
+            showWeather = !showWeather;
+            this.classList.toggle('active');
+
+            if (showWeather) {
+                loadWeatherData();
+            } else {
+                weatherMarkers.forEach(marker => map.removeLayer(marker));
+            }
+        });
+
+        // Toggle fire layer
+        document.getElementById('toggleFire').addEventListener('click', function () {
+            showFire = !showFire;
+            this.classList.toggle('active');
+
+            if (showFire) {
+                loadFireData();
+            } else {
+                fireMarkers.forEach(marker => map.removeLayer(marker));
+            }
+        });
+
+        // Get user location
+        document.getElementById('getLocationBtn').addEventListener('click', function () {
+            if (navigator.geolocation) {
+                showLoader(true);
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+
+                        map.setView([lat, lng], 13);
+
+                        L.marker([lat, lng])
+                            .addTo(map)
+                            .bindPopup('<strong><i class="fas fa-location-arrow"></i> Your Location</strong>')
+                            .openPopup();
+
+                        showNotification('Location found!', 'success');
+                        showLoader(false);
+                    },
+                    function (error) {
+                        showNotification('Could not get your location', 'error');
+                        showLoader(false);
+                    }
+                );
+            } else {
+                showNotification('Geolocation is not supported', 'error');
+            }
+        });
+
+        // Utility functions
+        function showLoader(show) {
+            document.getElementById('loader-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification show ${type}`;
+
+            setTimeout(() => {
+                notification.className = 'notification';
+            }, 3000);
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function () {
+            initMap();
+            loadLocationData();
+            loadWeatherData();
+            loadFireData();
+        });
+    </script>
+</body>
+
+</html>
