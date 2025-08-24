@@ -8,12 +8,23 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 import logging
-from translations import get_translation, get_all_translations, get_location_translation, get_language_name
+try:
+    from translations import get_translation, get_all_translations, get_location_translation, get_language_name
+except ImportError:
+    # Fallback functions if translations module is not available
+    def get_translation(key, language='en'):
+        return key
+    def get_all_translations():
+        return {'en': 'English'}
+    def get_location_translation(location, language='en'):
+        return location
+    def get_language_name(language_code):
+        return 'English'
 
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'fallback-secret-key-for-development')
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +35,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Add translation function to Jinja2 context
+@app.context_processor
+def inject_translation():
+    return dict(t=get_translation)
+
 # User class
 class User(UserMixin):
     def __init__(self, id, email):
@@ -32,13 +48,32 @@ class User(UserMixin):
 
 # Load CSV data
 def load_taluka_data():
-    try:
-        df = pd.read_csv('merged_village_temperature_data.csv')
-        talukas = df[['District Name', 'Taluka Name']].drop_duplicates().sort_values(['District Name', 'Taluka Name'])
-        return talukas
-    except Exception as e:
-        logger.error(f"Error loading CSV data: {e}")
-        return pd.DataFrame()
+    """Load taluka data from CSV file with fallback options"""
+    csv_files = [
+        'merged_village_temperature_data.csv',
+        'static/merged_village_temperature_data.csv',
+        '/app/merged_village_temperature_data.csv'
+    ]
+    
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file)
+            talukas = df[['District Name', 'Taluka Name']].drop_duplicates().sort_values(['District Name', 'Taluka Name'])
+            logger.info(f"✅ Loaded taluka data from {csv_file}")
+            return talukas
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            logger.error(f"Error loading CSV data from {csv_file}: {e}")
+            continue
+    
+    # If no CSV file found, create minimal fallback data
+    logger.warning("No CSV data file found, using fallback data")
+    fallback_data = pd.DataFrame({
+        'District Name': ['AHMADABAD', 'SURAT', 'RAJKOT', 'VADODARA'],
+        'Taluka Name': ['Bavla', 'Bardoli', 'Gondal', 'Vadodara']
+    })
+    return fallback_data
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -95,11 +130,23 @@ def check_weather_alerts():
                         })
         
         return alerts
+    except ImportError:
+        logger.warning("Weather API module not available")
+        return []
     except Exception as e:
         logger.error(f"Error checking weather alerts: {e}")
         return []
 
 # Routes
+@app.route('/health')
+def health_check():
+    """Health check endpoint for deployment systems"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Gujarat Weather Alert System',
+        'timestamp': pd.Timestamp.now().isoformat()
+    }), 200
+
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -626,4 +673,6 @@ def get_fire_alerts_for_area(district, taluka):
 
 if __name__ == '__main__':
     # For local development
-    app.run(debug=True, port=int(os.environ.get('PORT', 5000)), host='0.0.0.0')
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug, port=port, host='0.0.0.0')
