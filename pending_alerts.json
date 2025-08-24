@@ -146,6 +146,16 @@
     "message": "\ud83e\uddea DEMO ALERT:\n\nAAAAA",
     "type": "demo",
     "timestamp": "2025-08-20T15:46:54.901528",
+    "sent": true,
+    "sent_at": "2025-08-24T15:39:29.360906"
+  },
+  {
+    "id": "1756032620.905456",
+    "district": "AHMADABAD",
+    "taluka": "Bavla",
+    "message": "\ud83e\uddea DEMO ALERT:\n\nTemperature alert: Expected high temperature of 45\u00b0C in your area today. Stay hydrated and avoid outdoor activities!",
+    "type": "demo",
+    "timestamp": "2025-08-24T16:20:20.905456",
     "sent": false
   }
 ]

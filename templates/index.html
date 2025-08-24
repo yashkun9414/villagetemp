@@ -292,6 +292,7 @@
         let fireMarkers = [];
         let showWeather = true;
         let showFire = true;
+        let selectedAreaMarker = null;
 
         // Initialize map
         function initMap() {
@@ -552,12 +553,16 @@
                     talukaSelect.appendChild(option);
                 });
 
-                // Filter map to show only selected district
+                // Filter map and zoom to district
                 filterMapData(selectedDistrict, null);
+                zoomToLocation(selectedDistrict, null);
+                showDistrictInfo(selectedDistrict);
             } else {
                 talukaSelect.disabled = true;
-                // Show all data
+                // Show all data and reset view
                 filterMapData(null, null);
+                resetMapView();
+                hideLocationInfo();
             }
         });
 
@@ -568,13 +573,16 @@
 
             if (selectedTaluka && selectedDistrict) {
                 filterMapData(selectedDistrict, selectedTaluka);
-
-                // Try to get weather data for this specific location
+                zoomToLocation(selectedDistrict, selectedTaluka);
                 loadTalukaWeather(selectedDistrict, selectedTaluka);
             } else if (selectedDistrict) {
                 filterMapData(selectedDistrict, null);
+                zoomToLocation(selectedDistrict, null);
+                showDistrictInfo(selectedDistrict);
             } else {
                 filterMapData(null, null);
+                resetMapView();
+                hideLocationInfo();
             }
         });
 
@@ -635,34 +643,88 @@
                 const response = await fetch(`/api/fire_alerts/${district}/${taluka}`);
                 const data = await response.json();
 
+                const infoContent = document.getElementById('info-content');
+                let fireInfo = '';
+
                 if (data.success && data.alerts.length > 0) {
-                    const infoPanel = document.getElementById('info-panel');
-                    const infoContent = document.getElementById('info-content');
+                    fireInfo = `
+                        <div class="mb-3">
+                            <h6 class="text-danger mb-2"><i class="fas fa-fire"></i> Fire Alerts (Last 7 Days)</h6>
+                            <div class="alert alert-warning p-2 mb-2">
+                                <strong>${data.count} Fire Incident(s) Detected</strong>
+                            </div>
+                    `;
                     
-                    let fireInfo = `<div class="alert alert-warning p-2 mb-2">
-                        <strong>🔥 ${data.count} Fire Alert(s) (Last 7 Days)</strong>
-                    </div>`;
+                    // Categorize fires by confidence
+                    const highConfidence = data.alerts.filter(alert => alert.confidence >= 80);
+                    const mediumConfidence = data.alerts.filter(alert => alert.confidence >= 60 && alert.confidence < 80);
+                    const lowConfidence = data.alerts.filter(alert => alert.confidence < 60);
                     
-                    // Show recent high-confidence fires
+                    if (highConfidence.length > 0) {
+                        fireInfo += `<div class="mb-2">
+                            <span class="badge bg-danger">${highConfidence.length} High Confidence (≥80%)</span>
+                        </div>`;
+                    }
+                    
+                    if (mediumConfidence.length > 0) {
+                        fireInfo += `<div class="mb-2">
+                            <span class="badge bg-warning text-dark">${mediumConfidence.length} Medium Confidence (60-79%)</span>
+                        </div>`;
+                    }
+                    
+                    if (lowConfidence.length > 0) {
+                        fireInfo += `<div class="mb-2">
+                            <span class="badge bg-info">${lowConfidence.length} Low Confidence (<60%)</span>
+                        </div>`;
+                    }
+                    
+                    // Show most recent high-confidence fires
                     const recentFires = data.alerts
                         .filter(alert => alert.confidence >= 70)
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))
                         .slice(0, 3);
                     
                     if (recentFires.length > 0) {
-                        fireInfo += '<div class="mb-2"><strong>Recent High-Confidence Fires:</strong></div>';
+                        fireInfo += '<div class="mt-2"><strong>Recent Incidents:</strong></div>';
                         recentFires.forEach(fire => {
-                            fireInfo += `<div class="small mb-1">
-                                📅 ${fire.date} - ${fire.fire_type} (${fire.confidence}%)
+                            const confidenceClass = fire.confidence >= 80 ? 'text-danger' : 'text-warning';
+                            fireInfo += `<div class="small mb-1 p-2 bg-light rounded">
+                                📅 ${fire.date}<br>
+                                🔥 ${fire.fire_type} 
+                                <span class="${confidenceClass}">(${fire.confidence}%)</span><br>
+                                📍 ${fire.latitude.toFixed(4)}, ${fire.longitude.toFixed(4)}
                             </div>`;
                         });
                     }
                     
-                    // Append to existing content
-                    const currentContent = infoContent.innerHTML;
-                    infoContent.innerHTML = currentContent + fireInfo;
+                    fireInfo += '</div>';
+                } else {
+                    fireInfo = `
+                        <div class="mb-3">
+                            <h6 class="text-success mb-2"><i class="fas fa-check-circle"></i> Fire Status</h6>
+                            <div class="alert alert-success p-2">
+                                <small>✅ No fire incidents detected in last 7 days</small>
+                            </div>
+                        </div>
+                    `;
                 }
+                
+                // Append to existing content
+                const currentContent = infoContent.innerHTML;
+                infoContent.innerHTML = currentContent + fireInfo;
+                
             } catch (error) {
                 console.error('Error loading fire alerts:', error);
+                const infoContent = document.getElementById('info-content');
+                const currentContent = infoContent.innerHTML;
+                infoContent.innerHTML = currentContent + `
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-2"><i class="fas fa-fire"></i> Fire Status</h6>
+                        <div class="alert alert-secondary p-2">
+                            <small>Unable to load fire data</small>
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -686,7 +748,143 @@
             }
         }
 
-        // Show location info
+        // Zoom to selected location and highlight it
+        function zoomToLocation(district, taluka = null) {
+            // Remove previous area marker
+            if (selectedAreaMarker) {
+                map.removeLayer(selectedAreaMarker);
+                selectedAreaMarker = null;
+            }
+
+            const filteredData = locationData.filter(item => {
+                if (taluka) {
+                    return item['District Name'] === district && item['Taluka Name'] === taluka;
+                } else {
+                    return item['District Name'] === district;
+                }
+            });
+
+            if (filteredData.length > 0) {
+                // Calculate bounds for the selected area
+                const lats = filteredData.map(item => parseFloat(item['Taluka Latitude'])).filter(lat => !isNaN(lat));
+                const lngs = filteredData.map(item => parseFloat(item['Taluka Longitude'])).filter(lng => !isNaN(lng));
+
+                if (lats.length > 0 && lngs.length > 0) {
+                    const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                    const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+
+                    // Create a highlight marker for the selected area
+                    selectedAreaMarker = L.circleMarker([centerLat, centerLng], {
+                        radius: taluka ? 15 : 25,
+                        fillColor: '#667eea',
+                        color: '#4c63d2',
+                        weight: 3,
+                        opacity: 0.8,
+                        fillOpacity: 0.3,
+                        dashArray: '10, 5'
+                    }).addTo(map);
+
+                    // Add popup to the area marker
+                    const popupContent = `
+                        <div style="text-align: center;">
+                            <h6><i class="fas fa-map-marker-alt"></i> Selected Area</h6>
+                            <strong>${taluka ? `${taluka}, ` : ''}${district}</strong>
+                        </div>
+                    `;
+                    selectedAreaMarker.bindPopup(popupContent);
+
+                    const bounds = [
+                        [Math.min(...lats), Math.min(...lngs)],
+                        [Math.max(...lats), Math.max(...lngs)]
+                    ];
+
+                    // Add some padding to the bounds
+                    const latPadding = (Math.max(...lats) - Math.min(...lats)) * 0.1 || 0.1;
+                    const lngPadding = (Math.max(...lngs) - Math.min(...lngs)) * 0.1 || 0.1;
+
+                    bounds[0][0] -= latPadding;
+                    bounds[0][1] -= lngPadding;
+                    bounds[1][0] += latPadding;
+                    bounds[1][1] += lngPadding;
+
+                    map.fitBounds(bounds, { padding: [20, 20] });
+
+                    // If specific taluka, zoom closer and show notification
+                    if (taluka && lats.length === 1) {
+                        setTimeout(() => {
+                            map.setView([lats[0], lngs[0]], 12);
+                            showNotification(`Showing ${taluka}, ${district}`, 'info');
+                        }, 500);
+                    } else {
+                        showNotification(`Showing ${district} District`, 'info');
+                    }
+                }
+            }
+        }
+
+        // Reset map view to Gujarat
+        function resetMapView() {
+            // Remove area highlight
+            if (selectedAreaMarker) {
+                map.removeLayer(selectedAreaMarker);
+                selectedAreaMarker = null;
+            }
+            map.setView([22.30, 71.18], 7);
+            showNotification('Showing all of Gujarat', 'info');
+        }
+
+        // Show district information
+        function showDistrictInfo(district) {
+            const infoPanel = document.getElementById('info-panel');
+            const infoTitle = document.getElementById('info-title');
+            const infoContent = document.getElementById('info-content');
+
+            // Count talukas in district
+            const districtData = locationData.filter(item => item['District Name'] === district);
+            const talukaCount = [...new Set(districtData.map(item => item['Taluka Name']))].filter(Boolean).length;
+            const locationCount = districtData.length;
+
+            infoTitle.innerHTML = `<i class="fas fa-map-marked-alt"></i> ${district} District`;
+
+            let content = `
+                <div class="mb-2"><strong>📍 Talukas:</strong> ${talukaCount}</div>
+                <div class="mb-2"><strong>🏘️ Locations:</strong> ${locationCount}</div>
+            `;
+
+            // Check for fire incidents in district
+            const districtFires = fireMarkers.filter(marker => 
+                marker._fireData && marker._fireData.district === district
+            );
+
+            if (districtFires.length > 0) {
+                content += `<div class="alert alert-warning p-2 mt-2">
+                    <small><i class="fas fa-fire"></i> ${districtFires.length} fire incident(s) detected</small>
+                </div>`;
+            }
+
+            // Check for weather alerts in district
+            const districtWeatherMarkers = weatherMarkers.filter(marker => {
+                const popup = marker.getPopup();
+                return popup && popup.getContent().includes(district);
+            });
+
+            if (districtWeatherMarkers.length > 0) {
+                content += `<div class="mb-2 mt-2">
+                    <small><i class="fas fa-thermometer-half"></i> ${districtWeatherMarkers.length} weather station(s) monitored</small>
+                </div>`;
+            }
+
+            infoContent.innerHTML = content;
+            infoPanel.style.display = 'block';
+        }
+
+        // Hide location info
+        function hideLocationInfo() {
+            const infoPanel = document.getElementById('info-panel');
+            infoPanel.style.display = 'none';
+        }
+
+        // Show location info (enhanced)
         function showLocationInfo(taluka, district, weather = null) {
             const infoPanel = document.getElementById('info-panel');
             const infoTitle = document.getElementById('info-title');
@@ -694,27 +892,55 @@
 
             infoTitle.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${taluka}, ${district}`;
 
+            let content = '';
+
             if (weather) {
                 const temp = weather.current_temp;
                 const isHot = temp >= 40;
                 const isCold = temp <= 5;
 
-                infoContent.innerHTML = `
-                    <div class="mb-2">
-                        <strong>🌡️ Temperature:</strong> 
-                        <span class="${isHot ? 'text-danger' : isCold ? 'text-primary' : ''}">${temp}°C</span>
+                content += `
+                    <div class="mb-3">
+                        <h6 class="text-primary mb-2"><i class="fas fa-thermometer-half"></i> Weather Data</h6>
+                        <div class="mb-2">
+                            <strong>🌡️ Temperature:</strong> 
+                            <span class="${isHot ? 'text-danger' : isCold ? 'text-primary' : ''}">${temp}°C</span>
+                        </div>
+                        <div class="mb-2"><strong>📊 Range:</strong> ${weather.max_temp}°C / ${weather.min_temp}°C</div>
+                        <div class="mb-2"><strong>💧 Humidity:</strong> ${weather.humidity}%</div>
+                        <div class="mb-2"><strong>☁️ Condition:</strong> ${weather.weather_description}</div>
+                        ${isHot ? '<div class="alert alert-danger p-2 mt-2"><small>⚠️ High Temperature Alert</small></div>' : ''}
+                        ${isCold ? '<div class="alert alert-primary p-2 mt-2"><small>⚠️ Low Temperature Alert</small></div>' : ''}
                     </div>
-                    <div class="mb-2"><strong>📊 Range:</strong> ${weather.max_temp}°C / ${weather.min_temp}°C</div>
-                    <div class="mb-2"><strong>💧 Humidity:</strong> ${weather.humidity}%</div>
-                    <div class="mb-2"><strong>☁️ Condition:</strong> ${weather.weather_description}</div>
-                    ${isHot ? '<div class="alert alert-danger p-2 mt-2"><small>⚠️ High Temperature Alert</small></div>' : ''}
-                    ${isCold ? '<div class="alert alert-primary p-2 mt-2"><small>⚠️ Low Temperature Alert</small></div>' : ''}
                 `;
             } else {
-                infoContent.innerHTML = '<p class="text-muted mb-0">Weather data not available for this location</p>';
+                content += `
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-2"><i class="fas fa-thermometer-half"></i> Weather Data</h6>
+                        <p class="text-muted mb-0">Weather data not available for this specific location</p>
+                    </div>
+                `;
             }
 
+            // Add location statistics
+            const locationData_filtered = locationData.filter(item => 
+                item['District Name'] === district && item['Taluka Name'] === taluka
+            );
+
+            if (locationData_filtered.length > 0) {
+                content += `
+                    <div class="mb-3">
+                        <h6 class="text-info mb-2"><i class="fas fa-info-circle"></i> Location Info</h6>
+                        <div class="mb-2"><strong>🏘️ Villages/Areas:</strong> ${locationData_filtered.length}</div>
+                    </div>
+                `;
+            }
+
+            infoContent.innerHTML = content;
             infoPanel.style.display = 'block';
+
+            // Load fire alerts for this specific area
+            loadFireAlertsForArea(district, taluka);
         }
 
         // Toggle weather layer

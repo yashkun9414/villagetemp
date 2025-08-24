@@ -8,7 +8,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 import logging
-from translations import get_translation, get_all_translations, get_location_translation, get_language_name
+# Translations removed - system uses English only
 
 load_dotenv()
 
