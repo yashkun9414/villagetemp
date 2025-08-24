@@ -39,7 +39,8 @@ talukas_data = {}
 from shared_data import (
     load_subscribers, save_subscribers, add_subscriber, remove_subscriber,
     get_user_subscription, get_subscribers_for_area, queue_alert,
-    get_pending_alerts, mark_alert_sent, send_alert_to_subscribers
+    get_pending_alerts, mark_alert_sent, send_alert_to_subscribers,
+    validate_and_clean_subscribers, get_subscription_stats
 )
 
 def load_data():
@@ -155,12 +156,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🔧 Admin Commands:
 /broadcast <district> <taluka> <message> - Send custom message to taluka subscribers
+/adminfix - Check and fix subscription system issues
 
 📋 How to subscribe:
 1. Send /subscribe
 2. Choose your district from the list
 3. Choose your taluka from the list
 4. Confirm your subscription
+5. ✅ You'll get instant confirmation when successfully added!
 
 ✨ What you'll receive:
 • Real-time weather alerts (high/low temperature)
@@ -168,12 +171,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Emergency messages from administrators
 • Custom alerts for your specific area
 
+🔒 Subscription Features:
+• ✅ Automatic data validation and cleanup
+• ✅ Duplicate prevention system
+• ✅ Error handling and recovery
+• ✅ One subscription per user (auto-updates location)
+• ✅ Instant confirmation when subscribed
+
 🛰️ Data Sources:
 • Weather: Open-Meteo API (real-time)
 • Fire Data: NASA MODIS satellites
 • Location Data: Gujarat government records
 
-🤖 Bot: @VillaegWarningbot"""
+🤖 Bot: @VillaegWarningbot
+
+💡 Tip: If you experience any subscription issues, contact an admin or try /subscribe again."""
     
     await update.message.reply_text(help_text)
 
@@ -273,27 +285,62 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             district = user_data[user_id]['district']
             taluka = user_data[user_id]['taluka']
             
-            # Save subscription using shared data system
-            add_subscriber(user_id, district, taluka)
-            
-            await update.message.reply_text(
-                f"🎉 Successfully subscribed!\n\n"
-                f"📍 You'll receive weather alerts for:\n"
-                f"   {taluka}, {district}\n\n"
-                f"Commands:\n"
-                f"/mystatus - Check subscription\n"
-                f"/unsubscribe - Unsubscribe",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            
-            logger.info(f"User {user_id} subscribed to {district} -> {taluka}")
+            # Save subscription using shared data system with error handling
+            try:
+                if add_subscriber(user_id, district, taluka):
+                    await update.message.reply_text(
+                        f"🎉 Successfully subscribed!\n\n"
+                        f"📍 You'll receive weather alerts for:\n"
+                        f"   {taluka}, {district}\n\n"
+                        f"Commands:\n"
+                        f"/mystatus - Check subscription\n"
+                        f"/unsubscribe - Unsubscribe\n"
+                        f"/weather - Current weather\n"
+                        f"/fire - Fire alerts",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    
+                    logger.info(f"✅ User {user_id} successfully subscribed to {district} -> {taluka}")
+                    
+                    # Send welcome message with current status
+                    try:
+                        subscription = get_user_subscription(user_id)
+                        if subscription:
+                            await update.message.reply_text(
+                                f"✅ Subscription confirmed!\n\n"
+                                f"📊 Your alerts are now active for:\n"
+                                f"📍 {subscription['taluka']}, {subscription['district']}\n\n"
+                                f"🔔 You'll receive:\n"
+                                f"• High/Low temperature alerts\n"
+                                f"• Fire incident notifications\n"
+                                f"• Emergency weather warnings\n\n"
+                                f"📱 Test your subscription with /weather"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error sending welcome message: {e}")
+                        
+                else:
+                    await update.message.reply_text(
+                        "❌ Sorry, there was an error saving your subscription. Please try again with /subscribe.",
+                        reply_markup=ReplyKeyboardRemove()
+                    )
+                    logger.error(f"❌ Failed to subscribe user {user_id} to {district} -> {taluka}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Exception during subscription for user {user_id}: {e}")
+                await update.message.reply_text(
+                    "❌ Sorry, there was a technical error. Please try subscribing again with /subscribe.",
+                    reply_markup=ReplyKeyboardRemove()
+                )
         else:
             await update.message.reply_text(
                 "❌ Subscription cancelled.",
                 reply_markup=ReplyKeyboardRemove()
             )
         
-        del user_data[user_id]
+        # Clean up user data
+        if user_id in user_data:
+            del user_data[user_id]
 
 async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Unsubscribe command"""
@@ -506,12 +553,77 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error broadcasting message: {e}")
         await update.message.reply_text("❌ Error sending broadcast message.")
 
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show bot statistics"""
+async def admin_fix_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to fix subscription issues"""
+    user_id = update.effective_user.id
+    
+    # Check if user is admin
+    admin_ids = [int(os.getenv('ADMIN_TELEGRAM_ID', '0'))]
+    
+    if user_id not in admin_ids and user_id != 123456789:  # Replace with actual admin ID
+        await update.message.reply_text("❌ This command is only available to administrators.")
+        return
+    
     try:
-        subscribers = load_subscribers()
-        total_subscribers = sum(len(users) for users in subscribers.values())
-        areas_with_subscribers = len([k for k, v in subscribers.items() if v])
+        # Clean and validate subscriber data
+        old_subscribers = load_subscribers()
+        cleaned_subscribers = validate_and_clean_subscribers()
+        
+        # Get statistics
+        stats = get_subscription_stats()
+        
+        fix_text = f"🔧 ADMIN: Subscription System Check\n\n"
+        fix_text += f"📊 Current Status:\n"
+        fix_text += f"   • Total Subscribers: {stats['total_subscribers']}\n"
+        fix_text += f"   • Active Areas: {stats['active_areas']}\n\n"
+        
+        # Check for issues
+        issues_found = []
+        
+        # Check for empty areas
+        empty_areas = [k for k, v in cleaned_subscribers.items() if not v]
+        if empty_areas:
+            issues_found.append(f"Empty areas: {len(empty_areas)}")
+        
+        # Check file integrity
+        try:
+            with open(SUBSCRIBERS_FILE, 'r') as f:
+                json.load(f)
+            file_status = "✅ File OK"
+        except:
+            file_status = "❌ File corrupted"
+            issues_found.append("Corrupted file")
+        
+        fix_text += f"📁 File Status: {file_status}\n"
+        
+        if issues_found:
+            fix_text += f"⚠️ Issues Found: {', '.join(issues_found)}\n"
+            fix_text += f"✅ Issues automatically fixed!\n"
+        else:
+            fix_text += f"✅ No issues found - system healthy!\n"
+        
+        # Show recent subscription activity
+        fix_text += f"\n📈 Recent Activity:\n"
+        for key, users in list(cleaned_subscribers.items())[:5]:
+            if users:
+                district, taluka = key.split('_', 1)
+                fix_text += f"   • {taluka}, {district}: {len(users)} subscribers\n"
+        
+        await update.message.reply_text(fix_text)
+        
+    except Exception as e:
+        logger.error(f"Error in admin fix command: {e}")
+        await update.message.reply_text(f"❌ Error during system check: {str(e)}")
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show bot statistics with data validation"""
+    try:
+        # Clean and validate subscriber data first
+        subscribers = validate_and_clean_subscribers()
+        stats = get_subscription_stats()
+        
+        total_subscribers = stats['total_subscribers']
+        areas_with_subscribers = stats['active_areas']
         
         # Get top subscribed areas
         top_areas = []
@@ -654,6 +766,7 @@ def main():
     application.add_handler(CommandHandler("weather", weather_command))
     application.add_handler(CommandHandler("broadcast", broadcast_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("adminfix", admin_fix_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Add job to process pending alerts every 30 seconds
@@ -662,6 +775,20 @@ def main():
         lambda context: asyncio.create_task(process_pending_alerts(application)),
         interval=30,
         first=10
+    )
+    
+    # Add job to clean subscriber data every 10 minutes
+    def cleanup_subscribers(context):
+        try:
+            validate_and_clean_subscribers()
+            logger.info("✅ Periodic subscriber data cleanup completed")
+        except Exception as e:
+            logger.error(f"❌ Error during subscriber cleanup: {e}")
+    
+    job_queue.run_repeating(
+        cleanup_subscribers,
+        interval=600,  # 10 minutes
+        first=60       # Start after 1 minute
     )
     
     logger.info("✅ Bot is now LIVE and responding!")

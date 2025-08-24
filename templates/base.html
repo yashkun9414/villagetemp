@@ -49,8 +49,22 @@
             <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
                 <div class="position-sticky pt-3">
                     <div class="text-center mb-4">
-                        <h4 class="text-white"><i class="fas fa-cloud-sun"></i> Weather Alert</h4>
-                        <small class="text-white-50">Admin Panel</small>
+                        <h4 class="text-white"><i class="fas fa-cloud-sun"></i> {{ t('weather_alert_system') }}</h4>
+                        <small class="text-white-50">{{ t('admin_panel') }}</small>
+                        
+                        <!-- Language Switcher -->
+                        <div class="mt-3">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('set_language_route', lang_code='en', next=request.url) }}" 
+                                   class="btn btn-outline-light {% if current_language == 'en' %}active{% endif %}">
+                                    English
+                                </a>
+                                <a href="{{ url_for('set_language_route', lang_code='gu', next=request.url) }}" 
+                                   class="btn btn-outline-light {% if current_language == 'gu' %}active{% endif %}">
+                                    ગુજરાતી
+                                </a>
+                            </div>
+                        </div>
                     </div>
                     <ul class="nav flex-column">
                         <li class="nav-item">

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SelectField, TextAreaField, SubmitField
@@ -8,6 +8,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 import logging
+from translations import get_translation, get_all_translations, get_location_translation, get_language_name
 
 load_dotenv()
 
