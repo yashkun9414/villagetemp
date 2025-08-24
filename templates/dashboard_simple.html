@@ -12,35 +12,35 @@
 
     <!-- Stats Cards -->
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
             <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <h3>{{ total_districts }}</h3>
-                    <p>Districts</p>
+                <div class="card-body text-center py-3">
+                    <h4 class="h5 mb-1">{{ total_districts }}</h4>
+                    <p class="mb-0 small">Districts</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
             <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h3>{{ total_talukas }}</h3>
-                    <p>Talukas</p>
+                <div class="card-body text-center py-3">
+                    <h4 class="h5 mb-1">{{ total_talukas }}</h4>
+                    <p class="mb-0 small">Talukas</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
             <div class="card bg-warning text-white">
-                <div class="card-body text-center">
-                    <h3 id="alert-count">0</h3>
-                    <p>Active Alerts</p>
+                <div class="card-body text-center py-3">
+                    <h4 class="h5 mb-1" id="alert-count">0</h4>
+                    <p class="mb-0 small">Active Alerts</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-lg-3 mb-3 mb-lg-0">
             <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h3 id="subscriber-count">0</h3>
-                    <p>Bot Subscribers</p>
+                <div class="card-body text-center py-3">
+                    <h4 class="h5 mb-1" id="subscriber-count">0</h4>
+                    <p class="mb-0 small">Bot Subscribers</p>
                 </div>
             </div>
         </div>
@@ -48,13 +48,15 @@
 
     <!-- Weather Alerts Section -->
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-lg-8 mb-4">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5>🌡️ Live Weather Alerts</h5>
-                    <button class="btn btn-sm btn-primary" onclick="refreshAlerts()">
-                        <i class="fas fa-sync"></i> Refresh
-                    </button>
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <h5 class="mb-1 me-2">🌡️ Live Weather Alerts</h5>
+                        <button class="btn btn-sm btn-primary" onclick="refreshAlerts()">
+                            <i class="fas fa-sync"></i> <span class="d-none d-sm-inline">Refresh</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="weather-alerts">
@@ -70,30 +72,30 @@
         </div>
 
         <!-- Quick Actions -->
-        <div class="col-md-4">
+        <div class="col-lg-4 mb-4">
             <div class="card">
                 <div class="card-header">
                     <h5>⚡ Quick Actions</h5>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ url_for('send_alert') }}" class="btn btn-primary">
-                            <i class="fas fa-exclamation-triangle"></i> Send Custom Alert
+                        <a href="{{ url_for('send_alert') }}" class="btn btn-primary" style="min-height: 44px;">
+                            <i class="fas fa-exclamation-triangle"></i> <span class="d-none d-sm-inline">Send Custom Alert</span><span class="d-sm-none">Send Alert</span>
                         </a>
-                        <a href="{{ url_for('demo_alerts') }}" class="btn btn-warning">
-                            <i class="fas fa-play-circle"></i> Demo Alerts
+                        <a href="{{ url_for('demo_alerts') }}" class="btn btn-warning" style="min-height: 44px;">
+                            <i class="fas fa-play-circle"></i> <span class="d-none d-sm-inline">Demo Alerts</span><span class="d-sm-none">Demo</span>
                         </a>
-                        <a href="{{ url_for('view_subscribers') }}" class="btn btn-success">
-                            <i class="fas fa-users"></i> View Subscribers
+                        <a href="{{ url_for('view_subscribers') }}" class="btn btn-success" style="min-height: 44px;">
+                            <i class="fas fa-users"></i> <span class="d-none d-sm-inline">View Subscribers</span><span class="d-sm-none">Subscribers</span>
                         </a>
-                        <button class="btn btn-info" onclick="refreshAlerts()">
-                            <i class="fas fa-thermometer-half"></i> Check Weather
+                        <button class="btn btn-info" onclick="refreshAlerts()" style="min-height: 44px;">
+                            <i class="fas fa-thermometer-half"></i> <span class="d-none d-sm-inline">Check Weather</span><span class="d-sm-none">Weather</span>
                         </button>
-                        <a href="https://t.me/VillaegWarningbot" target="_blank" class="btn btn-secondary">
-                            <i class="fab fa-telegram"></i> View Bot
+                        <a href="https://t.me/VillaegWarningbot" target="_blank" class="btn btn-secondary" style="min-height: 44px;">
+                            <i class="fab fa-telegram"></i> <span class="d-none d-sm-inline">View Bot</span><span class="d-sm-none">Bot</span>
                         </a>
-                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger" style="min-height: 44px;">
+                            <i class="fas fa-sign-out-alt"></i> <span class="d-none d-sm-inline">Logout</span><span class="d-sm-none">Exit</span>
                         </a>
                     </div>
                 </div>
