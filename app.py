@@ -101,9 +101,11 @@ def check_weather_alerts():
 
 # Routes
 @app.route('/')
-def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+def home():
+    return render_template('home.html')
+
+@app.route('/map')
+def map_view():
     return render_template('index.html')
 
 @app.route('/admin')

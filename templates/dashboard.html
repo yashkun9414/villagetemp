@@ -15,64 +15,64 @@
 </div>
 
 <div class="row">
-    <div class="col-md-6 col-lg-3 mb-4">
+    <div class="col-6 col-lg-3 mb-4">
         <div class="card text-white bg-primary">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4 class="card-title">{{ total_districts }}</h4>
-                        <p class="card-text">Total Districts</p>
+                        <h5 class="card-title mb-1">{{ total_districts }}</h5>
+                        <p class="card-text small mb-0">Total Districts</p>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-map fa-2x"></i>
+                    <div>
+                        <i class="fas fa-map fa-lg"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-md-6 col-lg-3 mb-4">
+    <div class="col-6 col-lg-3 mb-4">
         <div class="card text-white bg-success">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4 class="card-title">{{ total_talukas }}</h4>
-                        <p class="card-text">Total Talukas</p>
+                        <h5 class="card-title mb-1">{{ total_talukas }}</h5>
+                        <p class="card-text small mb-0">Total Talukas</p>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-map-marker-alt fa-2x"></i>
+                    <div>
+                        <i class="fas fa-map-marker-alt fa-lg"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-md-6 col-lg-3 mb-4">
+    <div class="col-6 col-lg-3 mb-4">
         <div class="card text-white" id="bot-status-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4 class="card-title" id="bot-status-text">Checking...</h4>
-                        <p class="card-text">Bot Status</p>
+                        <h5 class="card-title mb-1" id="bot-status-text">Checking...</h5>
+                        <p class="card-text small mb-0">Bot Status</p>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fab fa-telegram fa-2x"></i>
+                    <div>
+                        <i class="fab fa-telegram fa-lg"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-md-6 col-lg-3 mb-4">
+    <div class="col-6 col-lg-3 mb-4">
         <div class="card text-white bg-info">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4 class="card-title">Ready</h4>
-                        <p class="card-text">Alert System</p>
+                        <h5 class="card-title mb-1">Ready</h5>
+                        <p class="card-text small mb-0">Alert System</p>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-bell fa-2x"></i>
+                    <div>
+                        <i class="fas fa-bell fa-lg"></i>
                     </div>
                 </div>
             </div>
@@ -81,24 +81,24 @@
 </div>
 
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-lg-8 mb-4">
         <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-chart-line me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <div class="d-grid">
-                            <a href="{{ url_for('send_alert') }}" class="btn btn-outline-primary btn-lg">
-                                <i class="fas fa-exclamation-triangle me-2"></i>Send Custom Alert
+                            <a href="{{ url_for('send_alert') }}" class="btn btn-outline-primary btn-lg" style="min-height: 48px;">
+                                <i class="fas fa-exclamation-triangle me-2"></i><span class="d-none d-sm-inline">Send Custom Alert</span><span class="d-sm-none">Send Alert</span>
                             </a>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <div class="d-grid">
-                            <a href="{{ url_for('demo_alerts') }}" class="btn btn-outline-success btn-lg">
-                                <i class="fas fa-play-circle me-2"></i>Test Demo Alerts
+                            <a href="{{ url_for('demo_alerts') }}" class="btn btn-outline-success btn-lg" style="min-height: 48px;">
+                                <i class="fas fa-play-circle me-2"></i><span class="d-none d-sm-inline">Test Demo Alerts</span><span class="d-sm-none">Demo Alerts</span>
                             </a>
                         </div>
                     </div>
@@ -107,13 +107,15 @@
         </div>
     </div>
     
-    <div class="col-md-4">
+    <div class="col-lg-4 mb-4">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5><i class="fab fa-telegram me-2"></i>Telegram Bot Info</h5>
-                <button id="restart-bot-btn" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-sync-alt me-1"></i>Restart Bot
-                </button>
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <h5 class="mb-1 me-2"><i class="fab fa-telegram me-2"></i>Telegram Bot Info</h5>
+                    <button id="restart-bot-btn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-sync-alt me-1"></i><span class="d-none d-sm-inline">Restart Bot</span><span class="d-sm-none">Restart</span>
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <p><strong>Bot Status:</strong> <span id="bot-status-badge" class="badge bg-secondary">Checking...</span></p>

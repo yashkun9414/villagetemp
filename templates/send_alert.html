@@ -15,7 +15,7 @@
 </div>
 
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-lg-8 mb-4">
         <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-paper-plane me-2"></i>Create Alert</h5>
@@ -25,9 +25,9 @@
                     {{ form.hidden_tag() }}
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-sm-6 mb-3">
                             {{ form.district.label(class="form-label") }}
-                            {{ form.district(class="form-select", id="districtSelect") }}
+                            {{ form.district(class="form-select", id="districtSelect", style="font-size: 16px;") }}
                             {% if form.district.errors %}
                                 <div class="text-danger small mt-1">
                                     {% for error in form.district.errors %}
@@ -37,9 +37,9 @@
                             {% endif %}
                         </div>
                         
-                        <div class="col-md-6 mb-3">
+                        <div class="col-sm-6 mb-3">
                             {{ form.taluka.label(class="form-label") }}
-                            {{ form.taluka(class="form-select", id="talukaSelect", disabled=true) }}
+                            {{ form.taluka(class="form-select", id="talukaSelect", disabled=true, style="font-size: 16px;") }}
                             {% if form.taluka.errors %}
                                 <div class="text-danger small mt-1">
                                     {% for error in form.taluka.errors %}
@@ -52,7 +52,7 @@
                     
                     <div class="mb-3">
                         {{ form.message.label(class="form-label") }}
-                        {{ form.message(class="form-control", rows="5", placeholder="Enter your weather alert message here...") }}
+                        {{ form.message(class="form-control", rows="5", placeholder="Enter your weather alert message here...", style="font-size: 16px;") }}
                         {% if form.message.errors %}
                             <div class="text-danger small mt-1">
                                 {% for error in form.message.errors %}
@@ -64,14 +64,14 @@
                     </div>
                     
                     <div class="d-grid">
-                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                        {{ form.submit(class="btn btn-primary btn-lg", style="min-height: 48px;") }}
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <div class="col-md-4">
+    <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-lightbulb me-2"></i>Alert Tips</h5>

@@ -7,50 +7,214 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #fff;
+            color: #333;
+        }
+        
         .sidebar {
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #000;
+            border-right: 1px solid #e5e5e5;
         }
         .sidebar .nav-link {
-            color: rgba(255,255,255,0.8);
+            color: #ccc;
             padding: 15px 20px;
-            border-radius: 10px;
+            border-radius: 6px;
             margin: 5px 10px;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            font-weight: 500;
         }
         .sidebar .nav-link:hover, .sidebar .nav-link.active {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            transform: translateX(5px);
+            background: #333;
+            color: #fff;
         }
         .main-content {
-            background: #f8f9fa;
+            background: #f9f9f9;
             min-height: 100vh;
         }
         .card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #fff;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 10px;
+            background: #000;
+            border: 1px solid #000;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .btn-primary:hover {
+            background: #333;
+            border-color: #333;
         }
         .alert {
-            border-radius: 10px;
+            border-radius: 6px;
+            border: 1px solid;
+        }
+        .alert-info {
+            background: #f8f9fa;
+            border-color: #e5e5e5;
+            color: #333;
+        }
+
+        /* Mobile Navigation */
+        .mobile-sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1050;
+            background: #000;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
+
+        .sidebar-overlay.show {
+            display: block;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 767.98px) {
+            .mobile-sidebar-toggle {
+                display: block;
+            }
+
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                height: 100vh;
+                z-index: 1045;
+                transition: left 0.3s ease;
+                overflow-y: auto;
+            }
+
+            .sidebar.show {
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0 !important;
+                padding: 60px 15px 20px;
+            }
+
+            .card {
+                margin-bottom: 20px;
+            }
+
+            .card-body {
+                padding: 15px;
+            }
+
+            .btn {
+                font-size: 0.9rem;
+                padding: 8px 16px;
+            }
+
+            .form-control, .form-select {
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+
+            .table-responsive {
+                font-size: 0.9rem;
+            }
+
+            h1, h2 {
+                font-size: 1.5rem;
+            }
+
+            h3, h4 {
+                font-size: 1.2rem;
+            }
+
+            .alert {
+                font-size: 0.9rem;
+                padding: 10px 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 60px 10px 15px;
+            }
+
+            .card-body {
+                padding: 12px;
+            }
+
+            .btn {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+
+            .sidebar {
+                width: 260px;
+            }
+
+            .sidebar .nav-link {
+                padding: 12px 15px;
+                font-size: 0.9rem;
+            }
+
+            .sidebar h4 {
+                font-size: 1.1rem;
+            }
+
+            .table-responsive {
+                font-size: 0.8rem;
+            }
+
+            .form-control, .form-select, .form-label {
+                font-size: 0.9rem;
+            }
         }
     </style>
 </head>
 <body>
+    {% if current_user.is_authenticated %}
+    <!-- Mobile Sidebar Toggle -->
+    <button class="mobile-sidebar-toggle" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+    {% endif %}
+
     <div class="container-fluid">
         <div class="row">
             {% if current_user.is_authenticated %}
-            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse" id="sidebar">
                 <div class="position-sticky pt-3">
                     <div class="text-center mb-4">
                         <h4 class="text-white"><i class="fas fa-cloud-sun"></i> Weather Alert System</h4>
-                        <small class="text-white-50">Admin Panel</small>
+                        <small style="color: #ccc;">Admin Panel</small>
                     </div>
                     <ul class="nav flex-column">
                         <li class="nav-item">
