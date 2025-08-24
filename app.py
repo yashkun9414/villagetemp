@@ -1,4 +1,3 @@
-import flask
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
@@ -7,7 +6,6 @@ from wtforms.validators import DataRequired, Email
 from werkzeug.security import check_password_hash, generate_password_hash
 import pandas as pd
 import os
-import sys
 from dotenv import load_dotenv
 import logging
 try:
@@ -41,49 +39,6 @@ login_manager.login_view = 'login'
 @app.context_processor
 def inject_translation():
     return dict(t=get_translation)
-
-# Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return """
-    <html>
-    <head><title>404 - Page Not Found</title></head>
-    <body>
-        <h1>🔍 Page Not Found</h1>
-        <p>The page you're looking for doesn't exist.</p>
-        <p><a href="/">Go to Home</a> | <a href="/login">Admin Login</a></p>
-    </body>
-    </html>
-    """, 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    logger.error(f"Internal server error: {error}")
-    return """
-    <html>
-    <head><title>500 - Internal Server Error</title></head>
-    <body>
-        <h1>⚠️ Internal Server Error</h1>
-        <p>Something went wrong on our end. Please try again later.</p>
-        <p><a href="/">Go to Home</a> | <a href="/health">Check System Health</a></p>
-        <p>If you're an admin, check the logs for more details.</p>
-    </body>
-    </html>
-    """, 500
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    logger.error(f"Unhandled exception: {e}")
-    return """
-    <html>
-    <head><title>Error - Gujarat Weather Alert System</title></head>
-    <body>
-        <h1>🚨 System Error</h1>
-        <p>An unexpected error occurred. Please try again.</p>
-        <p><a href="/">Go to Home</a> | <a href="/health">Check System Health</a></p>
-    </body>
-    </html>
-    """, 500
 
 # User class
 class User(UserMixin):
@@ -186,91 +141,17 @@ def check_weather_alerts():
 @app.route('/health')
 def health_check():
     """Health check endpoint for deployment systems"""
-    try:
-        # Test basic functionality
-        test_results = {
-            'app_running': True,
-            'templates_available': os.path.exists('templates'),
-            'static_available': os.path.exists('static'),
-            'csv_data_available': os.path.exists('merged_village_temperature_data.csv'),
-            'shared_data_working': False,
-            'environment_vars': {
-                'SECRET_KEY': bool(os.getenv('SECRET_KEY')),
-                'ADMIN_EMAIL': bool(os.getenv('ADMIN_EMAIL')),
-                'ADMIN_PASSWORD': bool(os.getenv('ADMIN_PASSWORD'))
-            }
-        }
-        
-        # Test shared_data module
-        try:
-            from shared_data import load_subscribers
-            load_subscribers()
-            test_results['shared_data_working'] = True
-        except Exception as e:
-            logger.warning(f"Shared data test failed: {e}")
-        
-        return jsonify({
-            'status': 'healthy',
-            'service': 'Gujarat Weather Alert System',
-            'timestamp': pd.Timestamp.now().isoformat(),
-            'tests': test_results
-        }), 200
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({
-            'status': 'error',
-            'service': 'Gujarat Weather Alert System',
-            'error': str(e),
-            'timestamp': pd.Timestamp.now().isoformat()
-        }), 500
-
-@app.route('/debug')
-def debug_info():
-    """Debug information for troubleshooting (remove in production)"""
-    try:
-        debug_data = {
-            'python_version': sys.version,
-            'flask_version': flask.__version__,
-            'working_directory': os.getcwd(),
-            'environment_variables': {
-                'PORT': os.getenv('PORT'),
-                'SECRET_KEY': 'SET' if os.getenv('SECRET_KEY') else 'NOT SET',
-                'ADMIN_EMAIL': os.getenv('ADMIN_EMAIL', 'NOT SET'),
-                'ADMIN_PASSWORD': 'SET' if os.getenv('ADMIN_PASSWORD') else 'NOT SET'
-            },
-            'file_system': {
-                'templates_exists': os.path.exists('templates'),
-                'static_exists': os.path.exists('static'),
-                'csv_exists': os.path.exists('merged_village_temperature_data.csv'),
-                'shared_data_exists': os.path.exists('shared_data.py'),
-                'translations_exists': os.path.exists('translations.py')
-            }
-        }
-        
-        return jsonify(debug_data), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    return jsonify({
+        'status': 'healthy',
+        'service': 'Gujarat Weather Alert System',
+        'timestamp': pd.Timestamp.now().isoformat()
+    }), 200
 
 @app.route('/')
 def index():
-    try:
-        if current_user.is_authenticated:
-            return redirect(url_for('dashboard'))
-        return render_template('index.html')
-    except Exception as e:
-        logger.error(f"Error in index route: {e}")
-        # Fallback to simple response if template fails
-        return """
-        <html>
-        <head><title>Gujarat Weather Alert System</title></head>
-        <body>
-            <h1>🌡️ Gujarat Weather Alert System</h1>
-            <p>Welcome to the Gujarat Weather Alert System!</p>
-            <p><a href="/login">Admin Login</a></p>
-            <p><a href="/health">System Health</a></p>
-        </body>
-        </html>
-        """, 200
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
 
 @app.route('/admin')
 def admin_redirect():
@@ -278,48 +159,28 @@ def admin_redirect():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    try:
-        form = LoginForm()
-        if form.validate_on_submit():
-            email = form.email.data
-            password = form.password.data
-            
-            # Debug: Check environment variables
-            admin_email = os.getenv('ADMIN_EMAIL', 'admin@weatheralert.com')
-            admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
-            
-            logger.info(f"Login attempt: {email}")
-            logger.info(f"Expected email: {admin_email}")
-            
-            if email == admin_email and password == admin_password:
-                user = User("1", email)
-                login_user(user)
-                logger.info(f"Successful login for {email}")
-                return redirect(url_for('dashboard'))
-            else:
-                logger.warning(f"Failed login attempt for {email}")
-                flash('Invalid email or password. Use admin@weatheralert.com / admin123')
+    form = LoginForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
         
-        return render_template('login.html', form=form)
-    except Exception as e:
-        logger.error(f"Error in login route: {e}")
-        # Fallback login form if template fails
-        return f"""
-        <html>
-        <head><title>Login - Gujarat Weather Alert System</title></head>
-        <body>
-            <h1>🔐 Admin Login</h1>
-            <form method="POST">
-                <p>Email: <input type="email" name="email" required></p>
-                <p>Password: <input type="password" name="password" required></p>
-                <p><input type="submit" value="Login"></p>
-            </form>
-            <p>Default: admin@weatheralert.com / admin123</p>
-            <p><a href="/">Back to Home</a></p>
-            <p>Error: {str(e)}</p>
-        </body>
-        </html>
-        """, 200
+        # Debug: Check environment variables
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@weatheralert.com')
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        
+        logger.info(f"Login attempt: {email}")
+        logger.info(f"Expected email: {admin_email}")
+        
+        if email == admin_email and password == admin_password:
+            user = User("1", email)
+            login_user(user)
+            logger.info(f"Successful login for {email}")
+            return redirect(url_for('dashboard'))
+        else:
+            logger.warning(f"Failed login attempt for {email}")
+            flash('Invalid email or password. Use admin@weatheralert.com / admin123')
+    
+    return render_template('login.html', form=form)
 
 @app.route('/logout')
 @login_required
@@ -330,18 +191,13 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    try:
-        talukas = load_taluka_data()
-        total_districts = talukas['District Name'].nunique()
-        total_talukas = len(talukas)
-        
-        return render_template('dashboard_simple.html', 
-                             total_districts=total_districts, 
-                             total_talukas=total_talukas)
-    except Exception as e:
-        logger.error(f"Error in dashboard route: {e}")
-        flash('Error loading dashboard. Please try again.', 'error')
-        return redirect(url_for('login'))
+    talukas = load_taluka_data()
+    total_districts = talukas['District Name'].nunique()
+    total_talukas = len(talukas)
+    
+    return render_template('dashboard_simple.html', 
+                         total_districts=total_districts, 
+                         total_talukas=total_talukas)
 
 @app.route('/send_alert', methods=['GET', 'POST'])
 @login_required
